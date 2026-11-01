@@ -11,10 +11,22 @@
 
 展場的擺放與展品名稱會自動存在瀏覽器裡（localStorage），換電腦或換瀏覽器不會帶過去。
 
-## 新增恐龍素材
+## 恐龍素材
 
-1. 在 `assets/fossils/` 底下為新恐龍建立資料夾，例如 `assets/fossils/stegosaurus/`，放入白底的 jpg 或已去背的 png。
-2. 去背並裁掉多餘的透明邊（第一次使用需要 `pip install pillow numpy scipy`）：
+素材可以是 **SVG**（建議，放大不會模糊）或**去背 PNG**。
+
+暴龍的 8 塊骨頭是 SVG，由 `tools/draw_trex.py` 產生（只需要 Python，不用額外套件）。要調整形狀、顏色，改這支腳本後重新執行：
+```
+python tools/draw_trex.py
+```
+8 塊骨頭用同一個比例尺繪製，`js/fossils.js` 裡的 `scale: 0.8` 讓它們放進展場時維持彼此的大小比例。
+
+### 新增恐龍
+
+1. 在 `assets/fossils/` 底下為新恐龍建立資料夾，例如 `assets/fossils/stegosaurus/`。
+   - SVG：根元素要有 `width`、`height` 屬性，畫布請貼齊骨頭（不留大片空白），選取框才會貼合。可以參考 `tools/draw_trex.py` 的畫法再寫一支。
+   - 白底 jpg 或 PNG：用下一步的工具處理。
+2. （僅 jpg / PNG）去背並裁掉多餘的透明邊（第一次使用需要 `pip install pillow numpy scipy`）：
    ```
    python tools/prepare_fossil.py assets/fossils/stegosaurus/*.jpg
    ```
@@ -24,9 +36,10 @@
    {
      id: 'stegosaurus',
      name: '劍龍',
+     scale: 0.8,   // 選填：骨頭用同一比例尺畫時才設定；不設定則每塊縮放到差不多大
      parts: [
-       { id: 'skull', name: '頭骨', src: 'assets/fossils/stegosaurus/1.png' },
-       { id: 'plates', name: '背板', src: 'assets/fossils/stegosaurus/2.png' },
+       { id: 'skull', name: '頭骨', src: 'assets/fossils/stegosaurus/skull.svg' },
+       { id: 'plates', name: '背板', src: 'assets/fossils/stegosaurus/plates.svg' },
      ],
    },
    ```
@@ -42,4 +55,6 @@
 | `css/style.css` | 樣式（展場背景、化石庫、工具列） |
 | `js/fossils.js` | 化石素材清單 |
 | `js/game.js` | 遊戲邏輯：拖曳、旋轉、縮放、存檔 |
-| `tools/prepare_fossil.py` | 素材去背、裁邊工具 |
+| `assets/fossils/t-rex/*.svg` | 暴龍 8 塊骨頭 |
+| `tools/draw_trex.py` | 產生暴龍 SVG 的腳本 |
+| `tools/prepare_fossil.py` | jpg / PNG 素材去背、裁邊工具 |

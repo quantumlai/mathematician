@@ -6,7 +6,7 @@
   const DEFAULT_SIZE = 320; // 新放進展場的骨頭，長邊約這麼大（展場座標）
   const MIN_SCALE = 0.1;
   const MAX_SCALE = 3;
-  const SAVE_KEY = 'fossil-museum-v1';
+  const SAVE_KEY = 'fossil-museum-v2';
 
   const $ = (sel) => document.querySelector(sel);
   const viewport = $('#viewport');
@@ -64,6 +64,7 @@
             img,
             w: img.naturalWidth,
             h: img.naturalHeight,
+            baseScale: part.scale ?? dino.scale ?? null,
             mask: buildMask(img),
           };
         }));
@@ -80,12 +81,17 @@
   const elements = new Map(); // uid → <img>
 
   function defaultScale(part) {
-    return DEFAULT_SIZE / Math.max(part.w, part.h);
+    return part.baseScale ?? DEFAULT_SIZE / Math.max(part.w, part.h);
   }
 
+  function pieceOf(partKey) {
+    return pieces.find((p) => p.part === partKey) || null;
+  }
+
+  // 每塊骨頭在展場上最多只有一塊
   function addPiece(partKey, x, y, extra = {}) {
     const part = parts[partKey];
-    if (!part) return null;
+    if (!part || pieceOf(partKey)) return null;
     const piece = {
       uid: nextUid++,
       part: partKey,
@@ -107,6 +113,7 @@
     piecesLayer.appendChild(el);
     elements.set(piece.uid, el);
     render(piece);
+    refreshLibrary();
     return piece;
   }
 
@@ -115,6 +122,7 @@
     elements.get(piece.uid)?.remove();
     elements.delete(piece.uid);
     if (selected === piece) select(null);
+    refreshLibrary();
   }
 
   function clearAll() {
@@ -365,13 +373,7 @@
     smaller: (p) => { p.scale = clampScale(p.scale / 1.15); },
     front: (p) => bringToFront(p),
     back: (p) => sendToBack(p),
-    duplicate: (p) => {
-      const copy = addPiece(p.part, p.x + 30, p.y + 30,
-        { rot: p.rot, scale: p.scale, flip: p.flip });
-      if (copy) select(copy);
-      return copy;
-    },
-    delete: (p) => { removePiece(p); return null; },
+    delete: (p) => removePiece(p),
   };
 
   function runAction(name) {
@@ -395,7 +397,7 @@
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     const keyActions = {
       q: 'rotate-left', e: 'rotate-right', f: 'flip', '+': 'bigger', '=': 'bigger', '-': 'smaller',
-      ']': 'front', '[': 'back', d: 'duplicate', Delete: 'delete', Backspace: 'delete',
+      ']': 'front', '[': 'back', Delete: 'delete', Backspace: 'delete',
     };
     if (moves[e.key]) {
       selected.x += moves[e.key][0];
@@ -413,6 +415,17 @@
   });
 
   // ── 化石庫 ────────────────────────────────────────
+  const thumbs = new Map(); // partKey → 化石庫裡的縮圖
+
+  // 已經放在展場上的骨頭，在化石庫標示為「已使用」
+  function refreshLibrary() {
+    for (const [key, thumb] of thumbs) {
+      const used = !!pieceOf(key);
+      thumb.classList.toggle('used', used);
+      thumb.title = used ? `${parts[key].name}（已在展場上）` : parts[key].name;
+    }
+  }
+
   function buildLibrary() {
     const list = $('#library-list');
     list.innerHTML = '';
@@ -428,27 +441,36 @@
         if (!parts[key]) continue;
         const thumb = document.createElement('div');
         thumb.className = 'part-thumb';
-        thumb.title = part.name;
         const img = document.createElement('img');
         img.src = part.src;
         img.alt = part.name;
         img.draggable = false;
         thumb.appendChild(img);
         enableThumbDrag(thumb, key);
+        thumbs.set(key, thumb);
         grid.appendChild(thumb);
       }
       group.append(title, grid);
       list.appendChild(group);
     }
+    refreshLibrary();
   }
 
-  // 從化石庫拖進展場；只點一下就放在展場中間附近
+  // 從化石庫拖進展場；只點一下就放在展場中間附近。
+  // 已在展場上的骨頭不會再產生新的，點它只會在展場上選取那一塊。
   function enableThumbDrag(thumb, key) {
     let ghost = null;
     let start = null;
 
     thumb.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
+      const existing = pieceOf(key);
+      if (existing) {
+        select(existing);
+        bringToFront(existing);
+        save();
+        return;
+      }
       start = { x: e.clientX, y: e.clientY };
       thumb.setPointerCapture(e.pointerId);
     });
@@ -500,13 +522,13 @@
     const dino = (window.FOSSIL_LIBRARY || [])[0];
     if (!dino) return;
     const spots = [
-      [0.24, 0.26], [0.74, 0.24], [0.28, 0.62], [0.72, 0.6],
-      [0.5, 0.42], [0.12, 0.45], [0.88, 0.45],
+      [0.13, 0.2], [0.14, 0.5], [0.33, 0.62], [0.42, 0.25],
+      [0.68, 0.58], [0.9, 0.58], [0.5, 0.55], [0.76, 0.17],
     ];
     dino.parts.forEach((part, i) => {
       const [fx, fy] = spots[i % spots.length];
       addPiece(`${dino.id}/${part.id}`, fx * WORLD_W, fy * WORLD_H, {
-        rot: Math.round((Math.random() - 0.5) * 70),
+        rot: Math.round((Math.random() - 0.5) * 40),
       });
     });
     select(null);
@@ -567,7 +589,7 @@
     }
   });
   $('#btn-clear').addEventListener('click', () => {
-    if (confirm('要把展場上的骨頭全部收起來嗎？')) {
+    if (confirm('要把展場上的骨頭全部收回化石庫嗎？')) {
       clearAll();
       save();
     }

@@ -88,6 +88,18 @@ button.danger:hover { background: #8f3d39; }
   touch-action: pan-y;
 }
 .part-thumb:hover { border-color: var(--accent); }
+.part-thumb { position: relative; }
+.part-thumb.used { cursor: pointer; background: #2f2722; }
+.part-thumb.used img { opacity: 0.3; }
+.part-thumb.used::after {
+  content: "✓";
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--accent);
+}
 .part-thumb img {
   max-width: 100%;
   max-height: 100%;
