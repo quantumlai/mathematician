@@ -1,0 +1,29 @@
+{
+  // ─────────────────────────────────────────────────────────────
+  // Claude Code 帳號設定
+  //
+  // 【預設：公司帳號】tzihuei.lai@evolutivelabs.com
+  //   設定資料夾：C:\Users\user\.claude（目前已登入）
+  //   不需要任何設定，維持現狀即可。
+  //
+  // 【備用：個人帳號】
+  //   設定資料夾：C:\Users\user\.claude-personal
+  //
+  // ⚠ 注意：claudeCode.environmentVariables 是「machine」層級的設定，
+  //   寫在這個工作區檔案裡不會生效，必須放在「使用者設定」：
+  //   Ctrl+Shift+P →「Preferences: Open User Settings (JSON)」
+  //
+  // ▶ 切換到個人帳號：把下面這段貼進使用者設定，
+  //   然後 Ctrl+Shift+P →「Developer: Reload Window」。
+  //   第一次切換時，在 Claude 輸入 /login 用個人帳號登入（之後會記住）。
+  //
+  //   "claudeCode.environmentVariables": [
+  //     { "name": "CLAUDE_CONFIG_DIR", "value": "C:\\Users\\user\\.claude-personal" }
+  //   ]
+  //
+  // ▶ 切回公司帳號：從使用者設定刪掉上面那段，再 Reload Window。
+  //
+  // 用 /status 可以確認目前登入的是哪個帳號。
+  // 處理公司工作與公司資料時，請使用公司帳號。
+  // ─────────────────────────────────────────────────────────────
+}

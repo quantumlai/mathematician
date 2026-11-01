@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>我的恐龍博物館</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>🦴 我的恐龍博物館</h1>
+    <div class="topbar-actions">
+      <button id="btn-help" type="button">玩法</button>
+      <button id="btn-reset" type="button">重新開始</button>
+      <button id="btn-clear" type="button">清空展場</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="library" aria-label="化石庫">
+      <h2>化石庫</h2>
+      <p class="library-hint">點一下或拖到展場</p>
+      <div id="library-list"></div>
+    </aside>
+
+    <section id="viewport" class="viewport" aria-label="展場">
+      <div id="world" class="world">
+        <div class="wall"></div>
+        <div class="floor"></div>
+        <div id="pieces"></div>
+        <div id="selection" class="selection" hidden>
+          <div class="handle-stem"></div>
+          <div class="handle handle-rotate" data-handle="rotate" title="拖曳旋轉">⟳</div>
+          <div class="handle handle-scale" data-handle="scale" title="拖曳縮放">⤡</div>
+        </div>
+        <div class="placard">
+          <div class="placard-label">展品名稱</div>
+          <div id="placard-title" class="placard-title" contenteditable="true" spellcheck="false"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav id="toolbar" class="toolbar" hidden aria-label="骨頭工具">
+    <button type="button" data-action="rotate-left" title="向左轉 (Q)">↺</button>
+    <button type="button" data-action="rotate-right" title="向右轉 (E)">↻</button>
+    <button type="button" data-action="flip" title="左右翻轉 (F)">⇋</button>
+    <button type="button" data-action="bigger" title="放大 (+)">＋</button>
+    <button type="button" data-action="smaller" title="縮小 (−)">－</button>
+    <button type="button" data-action="front" title="移到最上層 (])">置頂</button>
+    <button type="button" data-action="back" title="移到最下層 ([)">置底</button>
+    <button type="button" data-action="duplicate" title="複製 (D)">複製</button>
+    <button type="button" data-action="delete" class="danger" title="移除 (Delete)">移除</button>
+  </nav>
+
+  <dialog id="help" class="help">
+    <h2>玩法</h2>
+    <ul>
+      <li><b>拖曳骨頭</b>：移動位置</li>
+      <li><b>拖曳 ⟳</b>：自由旋轉（按住 Shift 會每 15° 對齊）</li>
+      <li><b>拖曳 ⤡</b>：放大縮小</li>
+      <li><b>兩指</b>：在平板上同時移動、旋轉、縮放</li>
+      <li><b>滑鼠滾輪</b>：旋轉選取的骨頭；Shift + 滾輪縮放</li>
+      <li><b>鍵盤</b>：方向鍵移動、Q / E 旋轉、F 翻轉、Delete 移除</li>
+      <li>點一下下方的<b>展品名稱</b>，幫你的恐龍取名字！</li>
+    </ul>
+    <p>展場會自動儲存在這台電腦的瀏覽器裡。</p>
+    <form method="dialog"><button>開始拼！</button></form>
+  </dialog>
+
+  <script src="js/fossils.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
