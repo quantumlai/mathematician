@@ -19,6 +19,7 @@
 
   const QUIZ_PASS = 6;        // 數學練習答對幾題可以得到一塊骨頭
   const STARTER_BONES = 5;    // 第一次建立帳號送幾塊隨機骨頭
+  const FILL_CHANCE = 0.7;    // 做題拿到的骨頭，有多少機率是用來補齊還沒集滿的那幾組
   const LAST_PLAYER_KEY = 'fossil-museum-last-player'; // 登入畫面預先填好上次的玩家代號
 
   // 搬到 LootLocker 以前存在這台電腦瀏覽器裡的資料，玩家第一次線上登入時一起搬上去（見 localImport）
@@ -1791,13 +1792,30 @@
   });
 
   // ── 採集新化石（數學練習）─────────────────────────
-  // 獎勵哪一塊骨頭：從所有恐龍的所有骨頭裡隨機挑一塊（不管有沒有這種恐龍）。
-  // 組別是這塊骨頭還沒擁有的最小號碼，例如已經有暴龍 (1) 的頭骨，再抽到暴龍頭骨就是暴龍 (2) 的。
-  function pickRewardBone(p) {
+  // 獎勵哪一塊骨頭：
+  //   fill = true（做題的獎勵）時，有 FILL_CHANCE 的機率從「已經有、但還沒集滿 8 塊的那幾組」缺的骨頭裡挑一塊；
+  //   其他時候（和歡迎禮物）從所有恐龍的所有骨頭裡隨機挑一塊（不管有沒有這種恐龍）。
+  // 隨機抽到的組別是這塊骨頭還沒擁有的最小號碼，例如已經有暴龍 (1) 的頭骨，再抽到暴龍頭骨就是暴龍 (2) 的。
+  function pickRewardBone(p, fill = false) {
     const owned = new Set(p.bones.map((b) => boneKey(b.part, b.set)));
     const dinos = (window.FOSSIL_LIBRARY || []).filter((d) => d.parts.every((part) => parts[`${d.id}/${part.id}`]));
     if (!dinos.length) return null;
     const randomOf = (list) => list[Math.floor(Math.random() * list.length)];
+
+    if (fill && Math.random() < FILL_CHANCE) {
+      const missing = [];
+      for (const dino of dinos) {
+        const sets = new Set(p.bones.filter((b) => b.part.startsWith(`${dino.id}/`)).map((b) => b.set));
+        for (const set of sets) {
+          for (const part of dino.parts) {
+            const key = `${dino.id}/${part.id}`;
+            if (!owned.has(boneKey(key, set))) missing.push({ part: key, set });
+          }
+        }
+      }
+      if (missing.length) return randomOf(missing); // 都集滿了（或還沒有骨頭）就改成隨機抽
+    }
+
     const dino = randomOf(dinos);
     const part = `${dino.id}/${randomOf(dino.parts).id}`;
     let set = 1;
@@ -1829,7 +1847,7 @@
         player.quizzes.push(record);
         let bone = null;
         if (score >= QUIZ_PASS) {
-          bone = pickRewardBone(player);
+          bone = pickRewardBone(player, true);
           if (bone) player.bones.push({ ...bone, at: Date.now() });
         }
         record.reward = !!bone;
