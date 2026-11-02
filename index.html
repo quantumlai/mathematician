@@ -14,7 +14,6 @@
       <button id="btn-new" type="button" class="primary">＋ 新展台</button>
     </div>
     <div class="topbar-actions edit-only">
-      <button id="btn-reset" type="button">重新散開</button>
       <button id="btn-clear" type="button">全部收回</button>
       <button id="btn-remove" type="button" class="danger">拆除展台</button>
       <button id="btn-cancel" type="button">取消</button>
@@ -35,7 +34,7 @@
       <h2>展示台</h2>
       <div id="pedestal-list" class="pedestal-list"></div>
       <h2>化石庫</h2>
-      <p class="library-hint">每塊骨頭在一個展台上只能用一次，點一下或拖到工作台</p>
+      <p class="library-hint">點一下或拖到工作台。每塊骨頭整座博物館只能用一次，用過的會變淡</p>
       <div id="library-list"></div>
     </aside>
 
@@ -83,7 +82,9 @@
       <li><b>兩指</b>：在平板上同時移動、旋轉、縮放</li>
       <li><b>滑鼠滾輪</b>：旋轉選取的骨頭；Shift + 滾輪縮放</li>
       <li><b>鍵盤</b>：方向鍵移動、Q / E 旋轉、F 鏡像、Delete 收回</li>
-      <li>左邊可以換<b>展示台</b>；點下方的<b>展品名稱</b>幫恐龍取名字</li>
+      <li>化石庫裡有你擁有的每一組素材，例如暴龍 (1)、暴龍 (2)。每塊骨頭整座博物館只能用一次，用過的會變淡；同一個展台可以混用不同組的骨頭</li>
+      <li>收回骨頭或拆除展台，骨頭會還回化石庫</li>
+      <li>左邊可以換<b>展示台</b>（展示台不限數量）；點下方的<b>展品名稱</b>幫恐龍取名字</li>
       <li>按<b>儲存</b>，你拼好的樣子就會放上展示台</li>
     </ul>
     <p>博物館會自動儲存在這台電腦的瀏覽器裡。</p>
@@ -91,6 +92,7 @@
   </dialog>
 
   <script src="js/fossils.js"></script>
+  <script src="js/inventory.js"></script>
   <script src="js/pedestals.js"></script>
   <script src="js/game.js"></script>
 </body>

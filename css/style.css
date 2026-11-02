@@ -290,35 +290,45 @@ body.mode-edit .museum-only { display: none !important; }
   gap: 8px;
 }
 .part-thumb {
-  aspect-ratio: 1;
+  position: relative;
+  aspect-ratio: 0.85;
   background: var(--panel-2);
   border-radius: 10px;
   border: 1px solid #5d4d42;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 6px;
+  gap: 2px;
+  padding: 8px 6px 5px;
   cursor: grab;
   touch-action: pan-y;
 }
 .part-thumb:hover { border-color: var(--accent); }
-.part-thumb { position: relative; }
 .part-thumb.used { cursor: pointer; background: #2f2722; }
 .part-thumb.used img { opacity: 0.3; }
-.part-thumb.used::after {
-  content: "✓";
-  position: absolute;
-  right: 6px;
-  top: 4px;
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--accent);
-}
 .part-thumb img {
-  max-width: 100%;
-  max-height: 100%;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
   pointer-events: none;
   -webkit-user-drag: none;
+}
+.part-name {
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.part-thumb.used .part-name { color: var(--muted); }
+.part-thumb.shake { animation: shake 0.35s; }
+@keyframes shake {
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
 }
 
 .drag-ghost {
@@ -487,7 +497,7 @@ body.mode-edit .museum-only { display: none !important; }
   .layout { flex-direction: column-reverse; }
   .library {
     width: 100%;
-    height: 118px;
+    height: 132px;
     overflow-x: auto;
     overflow-y: hidden;
     border-right: none;
@@ -504,5 +514,5 @@ body.mode-edit .museum-only { display: none !important; }
   .dino-group h3 { margin: 0; writing-mode: vertical-rl; }
   .dino-parts { display: flex; }
   .part-thumb { width: 92px; touch-action: pan-x; }
-  .toolbar { bottom: 130px; }
+  .toolbar { bottom: 144px; }
 }

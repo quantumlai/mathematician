@@ -126,8 +126,9 @@
   }
 
   // ── 展品資料 ──────────────────────────────────────
-  // exhibit = { id, title, pedestal, pieces: [{ part, x, y, rot, scale, flip }] }
-  // pieces 用的是工作台座標，博物館裡會自動縮放、擺到展示台上
+  // exhibit = { id, title, pedestal, pieces: [{ part, set, x, y, rot, scale, flip }] }
+  // pieces 用的是工作台座標，博物館裡會自動縮放、擺到展示台上。
+  // set 是這塊骨頭來自第幾組素材（1 起算），例如 { part: 't-rex/skull', set: 2 } 是暴龍 (2) 的頭骨
   let exhibits = [];
 
   function newId() {
@@ -140,6 +141,7 @@
       .filter((p) => p && typeof p.part === 'string')
       .map((p) => ({
         part: p.part,
+        set: Math.floor(+p.set) || 0, // 舊存檔沒有 set，載入後由 enforceInventory 補上
         x: +p.x || 0,
         y: +p.y || 0,
         rot: +p.rot || 0,
@@ -149,7 +151,7 @@
   }
 
   // ── 狀態 ──────────────────────────────────────────
-  // piece = { uid, part, x, y, rot, scale, flip }，x / y 是中心點的展場座標，rot 是角度
+  // piece = { uid, part, set, x, y, rot, scale, flip }，x / y 是中心點的工作台座標，rot 是角度
   let pieces = [];
   let nextUid = 1;
   let selected = null;
@@ -159,17 +161,60 @@
     return part.baseScale ?? DEFAULT_SIZE / Math.max(part.w, part.h);
   }
 
-  function pieceOf(partKey) {
-    return pieces.find((p) => p.part === partKey) || null;
+  // ── 素材 ──────────────────────────────────────────
+  // 化石庫是有限的：擁有幾組恐龍，化石庫就有幾組骨頭，每一塊在整座博物館只能用一次。
+  function ownedSets(dinoId) {
+    return Math.max(0, Math.floor(+(window.FOSSIL_INVENTORY || {})[dinoId] || 0));
   }
 
-  // 每塊骨頭在展場上最多只有一塊
-  function addPiece(partKey, x, y, extra = {}) {
+  function boneKey(partKey, set) {
+    return `${partKey}#${set}`;
+  }
+
+  // 已經用掉的骨頭：其他展台上的 + 工作台上的
+  function usedBones() {
+    const used = new Set(pieces.map((p) => boneKey(p.part, p.set)));
+    for (const ex of exhibits) {
+      if (ex === editing?.exhibit) continue;
+      for (const p of ex.pieces) used.add(boneKey(p.part, p.set));
+    }
+    return used;
+  }
+
+  // 載入存檔後檢查每塊骨頭：沒有組別（舊存檔）或重複的，改用還沒用過的那一組；
+  // 擁有的組數不夠時，從最新的展台開始拿掉（素材被收回時也一樣）。
+  function enforceInventory() {
+    const used = new Set();
+    const all = exhibits.flatMap((ex) => ex.pieces);
+    const valid = (p) => p.set >= 1 && p.set <= ownedSets(p.part.split('/')[0]);
+    const unplaced = new Set();
+    for (const p of all) {
+      const key = boneKey(p.part, p.set);
+      if (valid(p) && !used.has(key)) used.add(key);
+      else unplaced.add(p);
+    }
+    for (const p of unplaced) {
+      const owned = ownedSets(p.part.split('/')[0]);
+      let set = 1;
+      while (set <= owned && used.has(boneKey(p.part, set))) set++;
+      if (set <= owned) {
+        p.set = set;
+        used.add(boneKey(p.part, set));
+        unplaced.delete(p);
+      }
+    }
+    if (!unplaced.size) return false;
+    for (const ex of exhibits) ex.pieces = ex.pieces.filter((p) => !unplaced.has(p));
+    return true;
+  }
+
+  function addPiece(partKey, set, x, y, extra = {}) {
     const part = parts[partKey];
-    if (!part || pieceOf(partKey)) return null;
+    if (!part || usedBones().has(boneKey(partKey, set))) return null;
     const piece = {
       uid: nextUid++,
       part: partKey,
+      set,
       x,
       y,
       rot: 0,
@@ -488,14 +533,16 @@
   });
 
   // ── 化石庫 ────────────────────────────────────────
-  const thumbs = new Map(); // partKey → 化石庫裡的縮圖
+  // 每組素材一個分類：暴龍 (1)、暴龍 (2)……每個縮圖就是一塊骨頭
+  const thumbs = new Map(); // boneKey → 化石庫裡的縮圖
 
-  // 已經放在工作台上的骨頭，在化石庫標示為「已使用」
+  // 用過的骨頭（在任何展台或工作台上）顏色變淡
   function refreshLibrary() {
+    const used = usedBones();
     for (const [key, thumb] of thumbs) {
-      const used = !!pieceOf(key);
-      thumb.classList.toggle('used', used);
-      thumb.title = used ? `${parts[key].name}（已在工作台上）` : parts[key].name;
+      const isUsed = used.has(key);
+      thumb.classList.toggle('used', isUsed);
+      thumb.title = isUsed ? `${thumb.dataset.name}（已經用過了）` : thumb.dataset.name;
     }
   }
 
@@ -503,45 +550,55 @@
     const list = $('#library-list');
     list.innerHTML = '';
     for (const dino of window.FOSSIL_LIBRARY || []) {
-      const group = document.createElement('div');
-      group.className = 'dino-group';
-      const title = document.createElement('h3');
-      title.textContent = dino.name;
-      const grid = document.createElement('div');
-      grid.className = 'dino-parts';
-      for (const part of dino.parts) {
-        const key = `${dino.id}/${part.id}`;
-        if (!parts[key]) continue;
-        const thumb = document.createElement('div');
-        thumb.className = 'part-thumb';
-        const img = document.createElement('img');
-        img.src = part.src;
-        img.alt = part.name;
-        img.draggable = false;
-        thumb.appendChild(img);
-        enableThumbDrag(thumb, key);
-        thumbs.set(key, thumb);
-        grid.appendChild(thumb);
+      for (let set = 1; set <= ownedSets(dino.id); set++) {
+        const group = document.createElement('div');
+        group.className = 'dino-group';
+        const title = document.createElement('h3');
+        title.textContent = `${dino.name} (${set})`;
+        const grid = document.createElement('div');
+        grid.className = 'dino-parts';
+        for (const part of dino.parts) {
+          const partKey = `${dino.id}/${part.id}`;
+          if (!parts[partKey]) continue;
+          const thumb = document.createElement('div');
+          thumb.className = 'part-thumb';
+          thumb.dataset.name = `${dino.name} (${set})・${part.name}`;
+          const img = document.createElement('img');
+          img.src = part.src;
+          img.alt = part.name;
+          img.draggable = false;
+          thumb.append(img, elem('span', 'part-name', part.name));
+          enableThumbDrag(thumb, partKey, set);
+          thumbs.set(boneKey(partKey, set), thumb);
+          grid.appendChild(thumb);
+        }
+        group.append(title, grid);
+        list.appendChild(group);
       }
-      group.append(title, grid);
-      list.appendChild(group);
     }
+    if (!list.children.length) list.appendChild(elem('p', 'library-hint', '還沒有化石素材'));
     refreshLibrary();
   }
 
   // 從化石庫拖進工作台；只點一下就放在工作台中間附近。
-  // 已在工作台上的骨頭不會再產生新的，點它只會在工作台上選取那一塊。
-  function enableThumbDrag(thumb, key) {
+  // 用過的骨頭不能再拿；它在工作台上的話，點它會選取那一塊。
+  function enableThumbDrag(thumb, key, set) {
     let ghost = null;
     let start = null;
 
     thumb.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
-      const existing = pieceOf(key);
-      if (existing) {
-        select(existing);
-        bringToFront(existing);
-        markDirty();
+      if (usedBones().has(boneKey(key, set))) {
+        const existing = pieces.find((p) => p.part === key && p.set === set);
+        if (existing) {
+          select(existing);
+          bringToFront(existing);
+          markDirty();
+        } else {
+          thumb.classList.remove('shake');
+          void thumb.offsetWidth; // 重新觸發動畫
+          thumb.classList.add('shake');
+        }
         return;
       }
       start = { x: e.clientX, y: e.clientY };
@@ -567,11 +624,11 @@
       if (ghost) {
         if (isInsideViewport(e.clientX, e.clientY)) {
           const pt = toWorld(e.clientX, e.clientY);
-          piece = addPiece(key, pt.x, pt.y);
+          piece = addPiece(key, set, pt.x, pt.y);
         }
       } else {
         const jitter = () => (Math.random() - 0.5) * 160;
-        piece = addPiece(key, WORLD_W / 2 + jitter(), WORLD_H * 0.45 + jitter());
+        piece = addPiece(key, set, WORLD_W / 2 + jitter(), WORLD_H * 0.45 + jitter());
       }
       if (piece) {
         select(piece);
@@ -622,25 +679,6 @@
   function refreshPedestalPicker() {
     const current = editing && (pedestals[editing.pedestal] ? editing.pedestal : defaultPedestal);
     for (const [id, btn] of pedestalButtons) btn.classList.toggle('active', id === current);
-  }
-
-  // ── 把第一隻恐龍的骨頭散在工作台上 ─────────────────
-  function scatterStarter() {
-    clearAll();
-    const dino = (window.FOSSIL_LIBRARY || [])[0];
-    if (!dino) return;
-    const spots = [
-      [0.13, 0.2], [0.14, 0.5], [0.33, 0.62], [0.42, 0.25],
-      [0.68, 0.58], [0.9, 0.58], [0.5, 0.55], [0.76, 0.17],
-    ];
-    dino.parts.forEach((part, i) => {
-      const [fx, fy] = spots[i % spots.length];
-      addPiece(`${dino.id}/${part.id}`, fx * WORLD_W, fy * WORLD_H, {
-        rot: Math.round((Math.random() - 0.5) * 40),
-      });
-    });
-    select(null);
-    markDirty();
   }
 
   // ── 博物館大廳 ────────────────────────────────────
@@ -875,12 +913,11 @@
     fitWorld();
     clearAll();
     for (const p of exhibit.pieces) {
-      addPiece(p.part, p.x, p.y, { rot: p.rot, scale: p.scale, flip: p.flip });
+      addPiece(p.part, p.set, p.x, p.y, { rot: p.rot, scale: p.scale, flip: p.flip });
     }
     select(null);
     placardTitle.textContent = exhibit.title;
     refreshPedestalPicker();
-    if (isNew) scatterStarter();
     dirty = false;
   }
 
@@ -900,7 +937,7 @@
 
   function saveEditor() {
     const { exhibit, isNew, pedestal } = editing;
-    exhibit.pieces = pieces.map(({ part, x, y, rot, scale, flip }) => ({ part, x, y, rot, scale, flip }));
+    exhibit.pieces = pieces.map(({ part, set, x, y, rot, scale, flip }) => ({ part, set, x, y, rot, scale, flip }));
     exhibit.title = placardTitle.textContent.trim();
     exhibit.pedestal = pedestal;
     if (isNew) exhibits.push(exhibit);
@@ -976,9 +1013,6 @@
     }
     closeEditor(null);
   });
-  $('#btn-reset').addEventListener('click', () => {
-    if (confirm('要把工作台清空，重新拿出暴龍的骨頭嗎？')) scatterStarter();
-  });
   $('#btn-clear').addEventListener('click', () => {
     if (confirm('要把工作台上的骨頭全部收回化石庫嗎？')) {
       clearAll();
@@ -1005,6 +1039,7 @@
     buildLibrary();
     buildPedestalPicker();
     const returning = loadMuseum();
+    if (enforceInventory()) saveMuseum();
     renderMuseum();
     if (!returning) $('#help').showModal();
   })();
