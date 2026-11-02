@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="210" viewBox="0 0 520 210">
+  <defs>
+    <linearGradient id="rock" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a39a8b"/><stop offset="1" stop-color="#6e665b"/></linearGradient>
+  </defs>
+  <path d="M30 26 L120 14 L250 20 L380 12 L494 24 L510 70 L498 130 L516 196 L8 202 L22 140 L6 82 Z"
+        fill="url(#rock)" stroke="#3a332c" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M30 26 L120 14 L250 20 L380 12 L494 24 L486 40 L360 34 L240 40 L110 34 L36 44 Z" fill="#c2b9a8" opacity="0.8"/>
+  <g fill="#4f483f" opacity="0.45">
+    <path d="M60 90 L130 70 L170 110 L110 140 Z"/>
+    <path d="M300 80 L380 66 L410 120 L330 128 Z"/>
+    <path d="M200 150 L270 136 L300 180 L210 186 Z"/>
+    <path d="M430 140 L490 130 L500 186 L440 190 Z"/>
+  </g>
+  <g stroke="#3a332c" stroke-width="2" fill="none" opacity="0.6">
+    <path d="M150 44 L170 80 L160 120"/><path d="M360 50 L340 100 L360 150"/><path d="M60 160 L120 170"/>
+  </g>
+</svg>

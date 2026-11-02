@@ -1,19 +1,25 @@
 # 我的恐龍博物館
 
-把化石骨頭自由拖曳、旋轉、縮放，拼出自己想像的恐龍。純 HTML / JavaScript，不需要安裝或建置。
+把化石骨頭自由拖曳、旋轉、縮放，拼出自己想像的恐龍，放上展示台，蓋一座自己的博物館。純 HTML / JavaScript，不需要安裝或建置。
+
+## 玩法
+
+- **博物館**：一打開就是博物館大廳，每個展台上擺著玩家拼好的化石（不管拼成什麼樣子，都會自動縮放、站在檯面上）。展台變多時大廳會往右延伸，可以拖曳、用滾輪或 ← / → 鍵左右參觀。
+- **編輯模式**：點展品下方的「✏️ 重新組裝」，或右上角「＋ 新展台」，就會進入工作台重新擺骨頭、換展示台、改名字。按「儲存」回到博物館；「取消」會放棄這次的修改；「拆除展台」會把整個展台移除。
+- 化石庫裡的每塊骨頭，在**同一個展台**上只能用一次；不同展台可以各自使用。
 
 ## 開啟遊戲
 
 - **最簡單**：直接雙擊 `index.html`。
-- **建議**：用本機伺服器開啟，點骨頭的透明空隙時可以點到下面的骨頭（直接雙擊開啟時，瀏覽器不讓程式讀取圖片像素，只能用骨頭的外框判斷點擊）。
+- **建議**：用本機伺服器開啟，點骨頭的透明空隙時可以點到下面的骨頭，化石也會更準確地站在展示台上（直接雙擊開啟時，瀏覽器不讓程式讀取圖片像素，只能用骨頭的外框來判斷）。
   - VS Code 安裝 Live Server 擴充功能，對 `index.html` 按右鍵 →「Open with Live Server」，或
   - 在專案資料夾執行 `python -m http.server 8000`，再開 <http://localhost:8000>
 
-展場的擺放與展品名稱會自動存在瀏覽器裡（localStorage），換電腦或換瀏覽器不會帶過去。
+所有展台、擺放與展品名稱會存在瀏覽器裡（localStorage），換電腦或換瀏覽器不會帶過去。舊版只有一個展場的存檔，第一次開啟時會自動變成博物館裡的一個展台。
 
 ## 恐龍素材
 
-素材可以是 **SVG**（建議，放大不會模糊）或**去背 PNG**。
+素材建議用 **SVG**（放大不會模糊），也可以用已經去背的 PNG。
 
 暴龍的 8 塊骨頭是 SVG，由 `tools/draw_trex.py` 產生（只需要 Python，不用額外套件）。要調整形狀、顏色，改這支腳本後重新執行：
 ```
@@ -23,15 +29,9 @@ python tools/draw_trex.py
 
 ### 新增恐龍
 
-1. 在 `assets/fossils/` 底下為新恐龍建立資料夾，例如 `assets/fossils/stegosaurus/`。
-   - SVG：根元素要有 `width`、`height` 屬性，畫布請貼齊骨頭（不留大片空白），選取框才會貼合。可以參考 `tools/draw_trex.py` 的畫法再寫一支。
-   - 白底 jpg 或 PNG：用下一步的工具處理。
-2. （僅 jpg / PNG）去背並裁掉多餘的透明邊（第一次使用需要 `pip install pillow numpy scipy`）：
-   ```
-   python tools/prepare_fossil.py assets/fossils/stegosaurus/*.jpg
-   ```
-   去背只會移除與圖片外框相連的白底，骨頭上的白色高光會保留。處理完請打開 png 看一下，確認沒有誤刪。
-3. 在 `js/fossils.js` 加一筆：
+1. 在 `assets/fossils/` 底下為新恐龍建立資料夾，例如 `assets/fossils/stegosaurus/`，放入每塊骨頭的 SVG。
+   根元素要有 `width`、`height` 屬性，畫布請貼齊骨頭（不留大片空白），選取框才會貼合。可以參考 `tools/draw_trex.py` 的畫法再寫一支。
+2. 在 `js/fossils.js` 加一筆：
    ```js
    {
      id: 'stegosaurus',
@@ -45,16 +45,28 @@ python tools/draw_trex.py
    ```
    `id` 會用在存檔裡，加入後請不要再改，否則玩家已擺好的那塊骨頭會消失。
 
-重新整理頁面，左側化石庫就會出現新的恐龍。
+重新整理頁面，編輯模式左側的化石庫就會出現新的恐龍。
+
+## 展示台素材
+
+展示台放在 `assets/pedestals/`，清單在 `js/pedestals.js`。新增一種展示台：
+
+1. 畫一張 SVG（或去背 PNG），寬度約 400～600 px，畫布貼齊展示台。博物館裡會用原始尺寸顯示。
+2. 在 `js/pedestals.js` 加一筆：
+   ```js
+   { id: 'gold', name: '黃金展示台', src: 'assets/pedestals/gold.svg', surface: 16 },
+   ```
+   `surface` 是檯面距離圖片上緣幾 px，化石會站在這條線上。`id` 會用在存檔裡，加入後請不要再改。清單第一筆是新展台的預設展示台。
 
 ## 檔案結構
 
 | 路徑 | 說明 |
 | --- | --- |
 | `index.html` | 頁面結構 |
-| `css/style.css` | 樣式（展場背景、化石庫、工具列） |
+| `css/style.css` | 樣式（博物館大廳、工作台、化石庫、工具列） |
 | `js/fossils.js` | 化石素材清單 |
-| `js/game.js` | 遊戲邏輯：拖曳、旋轉、縮放、存檔 |
+| `js/pedestals.js` | 展示台素材清單 |
+| `js/game.js` | 遊戲邏輯：博物館大廳、編輯模式（拖曳、旋轉、縮放）、存檔 |
 | `assets/fossils/t-rex/*.svg` | 暴龍 8 塊骨頭 |
+| `assets/pedestals/*.svg` | 展示台（木頭、大理石、岩石） |
 | `tools/draw_trex.py` | 產生暴龍 SVG 的腳本 |
-| `tools/prepare_fossil.py` | jpg / PNG 素材去背、裁邊工具 |
