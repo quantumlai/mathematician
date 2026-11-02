@@ -22,12 +22,14 @@
 //   createdAt, updatedAt
 // }
 window.PlayerStore = (() => {
-  const API = 'https://1jjsx26h.api.lootlocker.io';
-  const GAME_KEY = 'dev_27d7155e7efb473097dba7f324246fdf'; // Stage 環境的 game API key
+  // 連到哪一個 LootLocker（正式 / 開發）由 js/config.js 決定
+  const ENV = window.GAME_ENV;
+  const API = ENV.api;
+  const GAME_KEY = ENV.gameKey;
   const GAME_VERSION = '1.0.0';
   const LEADERBOARD = 'museums';
   const CHUNK = 1400;
-  const REMEMBER_KEY = 'fossil-museum-session';
+  const REMEMBER_KEY = `fossil-museum-session:${ENV.id}`; // 每個環境分開記，不會把開發環境的登入帶到正式環境
   const REMEMBER_MS = 24 * 60 * 60 * 1000;
 
   let session = null; // { token, identifier, playerId }

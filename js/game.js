@@ -1101,6 +1101,7 @@
 
   // 這台電腦瀏覽器裡的舊資料：同一個代號的玩家；或是還沒有玩家代號時的存檔（展台和暴龍 2 組，只給一個人）
   function localImport(name) {
+    if (!window.GAME_ENV.importLocalData) return null; // 開發環境不搬，免得舊資料被測試用掉
     const local = readJSON(LOCAL_PLAYERS_KEY);
     const old = local?.players?.[window.PlayerStore.idOf(name)];
     if (old) {
@@ -1696,6 +1697,15 @@
     buildLibrary();
     showMuseum(player);
     return true;
+  }
+
+  // 在自己電腦上開、或是用開發環境時，左上角標出目前連到哪個環境（設定在 js/config.js）
+  const envBadge = $('#env-badge');
+  if (window.GAME_ENV.local || window.GAME_ENV.id !== 'prod') {
+    envBadge.textContent = window.GAME_ENV.id === 'prod' ? `⚠️ ${window.GAME_ENV.name}` : `🧪 ${window.GAME_ENV.name}`;
+    envBadge.classList.add(`env-${window.GAME_ENV.id}`);
+    envBadge.title = '連線設定在 js/config.js，網址加上 ?env=dev 或 ?env=prod 可以切換';
+    envBadge.hidden = false;
   }
 
   (async () => {

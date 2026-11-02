@@ -23,7 +23,22 @@
 
 ## 玩家資料
 
-玩家資料存在 [LootLocker](https://lootlocker.com)（Stage 環境），換電腦或平板用同樣的玩家代號和密碼登入就能繼續玩，也能參觀別人的博物館。連線設定和存放方式都在 `js/store.js`。
+玩家資料存在 [LootLocker](https://lootlocker.com)，換電腦或平板用同樣的玩家代號和密碼登入就能繼續玩，也能參觀別人的博物館。存放方式在 `js/store.js`，連線設定在 `js/config.js`。
+
+### 正式環境與開發環境
+
+有兩個 LootLocker 遊戲，資料完全分開：
+
+| 環境 | 用途 | LootLocker domain key |
+| --- | --- | --- |
+| `prod` 正式環境 | 小朋友真正在玩的資料 | `1jjsx26h` |
+| `dev` 開發環境 | 開發、測試用，資料可以隨便新增刪除 | `w3meemf6` |
+
+- **自動選擇**：在自己電腦上開（`localhost`、`127.0.0.1`、直接雙擊 `index.html`）用開發環境；放到其他網址用正式環境。
+- **手動指定**：網址加上 `?env=dev` 或 `?env=prod`，例如 <http://localhost:8000/?env=prod>。
+- 在自己電腦上開、或是用開發環境時，左上角會顯示「🧪 開發環境」或「⚠️ 正式環境」。正式網址上不會顯示。
+- 記住登入是每個環境分開記的；舊的瀏覽器資料只會搬到正式環境（`importLocalData`）。
+- 兩個 LootLocker 遊戲都要開啟 Guest Login，並建立 `museums` 排行榜（設定見下面）。
 
 - **登入**：玩家代號加 4 位數密碼。第一次用的代號要設定密碼；登入後可以在 ☰ 選單「🔑 修改密碼」。密碼只是防止小朋友惡作劇：檢查在網頁上做，懂得開發者工具的人可以繞過。
 - **記住登入**：登入後，這台電腦的瀏覽器會記住是誰，重新整理網頁或關掉再開都不用重新登入。每次使用都會延長，超過 24 小時沒用才需要重新登入。好幾個小朋友共用同一台平板時，玩完記得從 ☰ 選單「🚪 登出」。
@@ -37,7 +52,7 @@
   LootLocker 每個值最多 1500 字，所以一份資料切成好幾段：`.n` 是段數，`.0`、`.1`… 依序接起來是一個 JSON。emoji 會先轉成 `\uXXXX` 再存（LootLocker 存不了 emoji）。
 - **參觀清單**來自排行榜 `museums`（Player 類型，開啟 Game API Writes、Metadata、Overwrite Score on Submit）。每次存檔都會送一次，分數是展品數，metadata 是名字、年級、角色、展品數。
 - **舊資料**：還沒改用 LootLocker 前存在這台電腦瀏覽器裡的玩家，第一次線上登入時會帶出原本的年級、角色、骨頭、展台、成績，設定密碼後一起搬上去。還沒有玩家代號時的舊存檔，會交給這台電腦第一個在線上建立的玩家。
-- `js/store.js` 裡的 game API key 是 `dev_` 開頭的 Stage key。要改用 Live 環境，換成 `prod_` 開頭的 key 即可。
+- `js/config.js` 裡的 game API key 都是 `dev_` 開頭（LootLocker 的 Stage）。之後要改用 LootLocker 的 Live，換成 `prod_` 開頭的 key 即可。
 
 ## 恐龍素材
 
@@ -129,7 +144,8 @@
 | `js/pedestals.js` | 展示台素材清單 |
 | `js/showcase.js` | 登入畫面的範例展品 |
 | `js/math/grade3a.js` | 小三(上) 數學題庫 |
-| `js/store.js` | 玩家資料的存放（目前是瀏覽器 localStorage） |
+| `js/config.js` | 連線設定：正式環境、開發環境 |
+| `js/store.js` | 玩家資料存在 LootLocker：登入、存檔、參觀清單 |
 | `js/quiz.js` | 數學練習畫面、做完後的回顧 |
 | `js/scratchpad.js` | 計算紙 |
 | `js/role.js` | 角色與場景的 SVG 美術；`CHARACTERS` 是玩家可以選的角色 |

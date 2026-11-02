@@ -187,6 +187,10 @@ body:not(.mode-login) .login-title { display: none; }
   border-radius: 12px;
 }
 .player-chip:empty { display: none; }
+.env-badge { font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+.env-badge[hidden] { display: none; }
+.env-badge.env-dev { background: #3d6b8f; color: #fff; }
+.env-badge.env-prod { background: #b8462f; color: #fff; }
 .topbar-actions { display: flex; gap: 8px; flex: none; }
 body.visiting .topbar { background: #2f3a44; }
 
