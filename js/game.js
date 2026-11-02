@@ -1125,13 +1125,17 @@
   function setMode(mode) {
     for (const m of ['loading', 'login', 'museum', 'edit']) document.body.classList.toggle(`mode-${m}`, m === mode);
     document.body.classList.toggle('visiting', mode === 'museum' && readonly());
+    updateTitle();
+    $('#player-chip').textContent = mode === 'museum' && readonly() ? `參觀中・${player.name}` : '';
+    closeMenu();
+  }
+
+  // 左上角：寬爸的恐龍博物館（小三上）；入口的大招牌不加年級
+  function updateTitle() {
     const title = owner ? museumName(owner) : '恐龍博物館';
-    // 左上角：寬爸的恐龍博物館（小三）；入口的大招牌不加年級
     const short = owner && gradeOf(owner.grade)?.short;
     $('#museum-title').textContent = short ? `${title}（${short}）` : title;
     document.title = title;
-    $('#player-chip').textContent = mode === 'museum' && readonly() ? `參觀中・${player.name}` : '';
-    closeMenu();
   }
 
   function openEditor(exhibit, isNew) {
@@ -1352,25 +1356,41 @@
     nameInput.focus();
   }
 
-  function renderGradeChoices(selectedId) {
-    const list = $('#grade-list');
+  // 年級選項：每個年級一列，上學期、下學期兩個選項（登入畫面和選單的「更改年級」共用）
+  function renderGradeChoices(list, selectedId, onChange) {
     list.innerHTML = '';
+    const name = `grade-${list.id}`;
     for (const g of window.MATH_GRADES || []) {
       const label = elem('label', 'grade-option');
       const radio = elem('input');
       radio.type = 'radio';
-      radio.name = 'grade';
+      radio.name = name;
       radio.value = g.id;
       radio.checked = g.id === selectedId;
-      radio.addEventListener('change', updateEnterButton);
+      radio.addEventListener('change', () => onChange(g.id));
       label.append(radio, elem('span', '', g.name));
       list.appendChild(label);
     }
-    updateEnterButton();
   }
 
   function chosenGrade() {
-    return confirmForm.querySelector('input[name="grade"]:checked')?.value || null;
+    return $('#grade-list').querySelector('input:checked')?.value || null;
+  }
+
+  function openGradeDialog() {
+    const list = $('#grade-dialog-list');
+    const onChange = async (id) => {
+      const before = player.grade;
+      player.grade = id;
+      if (!(await savePlayer())) {
+        player.grade = before;
+        renderGradeChoices(list, before, onChange); // 存檔失敗就選回原本的
+        return;
+      }
+      updateTitle();
+    };
+    renderGradeChoices(list, player.grade, onChange);
+    $('#grade-dialog').showModal();
   }
 
   // 新玩家要設密碼、選年級和角色；舊玩家輸入密碼、確認年級（角色在選單裡換）
@@ -1429,7 +1449,8 @@
       $('#grade-label').textContent = '你的年級（升級了可以在這裡改）';
       $('#btn-enter').textContent = '進入我的博物館';
       $('#role-section').hidden = true;
-      renderGradeChoices(gradeOf(existing.grade) ? existing.grade : null);
+      renderGradeChoices($('#grade-list'), gradeOf(existing.grade) ? existing.grade : null, updateEnterButton);
+      updateEnterButton();
     } else {
       $('#login-greet').textContent = imported
         ? '這台電腦裡有你之前的博物館！設定密碼後會一起搬到網路上。'
@@ -1441,7 +1462,8 @@
         pending.role = id;
         updateEnterButton();
       });
-      renderGradeChoices(gradeOf(imported?.grade) ? imported.grade : null);
+      renderGradeChoices($('#grade-list'), gradeOf(imported?.grade) ? imported.grade : null, updateEnterButton);
+      updateEnterButton();
     }
     showLoginStep('confirm');
     pinInput.focus();
@@ -1580,6 +1602,7 @@
     if (action === 'report') openReport();
     else if (action === 'role') whenSynced(openRoleDialog);
     else if (action === 'pin') whenSynced(openPinDialog);
+    else if (action === 'grade') whenSynced(openGradeDialog);
     else if (action === 'new' && owner === player && !editing) whenSynced(newExhibit);
     else if (action === 'logout') logout();
     else if (action === 'clear') $('#btn-clear').click();
@@ -1605,27 +1628,57 @@
     return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  // 成績單：最上面是全部加起來做了幾題；下面可以切換「全部」或某個年級學期，看那個學期的統計和最近的練習
   function openReport() {
     const quizzes = player.quizzes;
     const questions = quizzes.reduce((n, q) => n + (q.total || 0), 0);
-    const correct = quizzes.reduce((n, q) => n + (q.score || 0), 0);
-    const passes = quizzes.filter(gotBone).length;
 
     // 玩家角色開心的樣子（js/role.js）
     $('#report-avatar').innerHTML = characterSVG(player.role, 'happy');
-    $('#report-name').textContent = `${player.name}的成績單・${gradeName(player.grade)}`;
+    $('#report-name').textContent = `${player.name}的成績單・現在是${gradeName(player.grade)}`;
     $('#report-headline').textContent = `你已經完成 ${questions} 題數學！`;
     $('#report-praise').textContent = praiseFor(questions);
+
+    // 有練習過的學期，照年級順序；預設看現在的學期（還沒練習過就看全部）
+    const order = (window.MATH_GRADES || []).map((g) => g.id);
+    const played = [...new Set(quizzes.map((q) => q.grade))]
+      .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    const scopes = [{ id: 'all', name: '全部' }, ...played.map((id) => ({ id, name: gradeName(id) }))];
+    const tabs = $('#report-tabs');
+    tabs.innerHTML = '';
+    for (const scope of scopes) {
+      const tab = elem('button', 'report-tab', scope.name);
+      tab.type = 'button';
+      tab.setAttribute('role', 'tab');
+      tab.addEventListener('click', () => showReportScope(scope.id));
+      tab.dataset.scope = scope.id;
+      tabs.appendChild(tab);
+    }
+    tabs.hidden = played.length < 2; // 只練習過一個學期時不需要切換
+    showReportScope(played.includes(player.grade) ? player.grade : 'all');
+    $('#report').showModal();
+  }
+
+  function showReportScope(scopeId) {
+    for (const tab of $('#report-tabs').children) {
+      const on = tab.dataset.scope === scopeId;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', String(on));
+    }
+    const all = scopeId === 'all';
+    const quizzes = all ? player.quizzes : player.quizzes.filter((q) => q.grade === scopeId);
+    const questions = quizzes.reduce((n, q) => n + (q.total || 0), 0);
+    const correct = quizzes.reduce((n, q) => n + (q.score || 0), 0);
 
     const stats = $('#report-stats');
     stats.innerHTML = '';
     for (const [label, value] of [
       ['練習次數', `${quizzes.length} 次`],
-      ['答對', `${correct} 題`],
+      ['答對', `${correct} / ${questions} 題`],
       ['答對率', questions ? `${Math.round((correct / questions) * 100)}%` : '—'],
-      ['挖到化石', `${passes} 次`],
-      ['收藏骨頭', `${player.bones.length} 塊`],
+      ['挖到化石', `${quizzes.filter(gotBone).length} 次`],
       ['最高分', quizzes.length ? `${Math.max(...quizzes.map((q) => q.score))} / 10` : '—'],
+      all ? ['收藏骨頭', `${player.bones.length} 塊`] : ['平均答對', quizzes.length ? `${(correct / quizzes.length).toFixed(1)} 題` : '—'],
     ]) {
       const box = elem('div', 'report-stat');
       box.append(elem('div', 'report-stat-value', value), elem('div', 'report-stat-label', label));
@@ -1646,7 +1699,6 @@
       );
       recent.appendChild(row);
     }
-    $('#report').showModal();
   }
 
   // ── 參觀其他博物館 ────────────────────────────────

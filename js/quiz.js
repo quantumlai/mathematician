@@ -78,14 +78,29 @@ window.MathQuiz = (() => {
     }
   }
 
-  function makeInput() {
+  // decimal：答案有小數時，平板跳出有小數點的鍵盤
+  function makeInput(decimal) {
     const input = elem('input', 'quiz-input');
     input.type = 'text';
-    input.inputMode = 'numeric';
+    input.inputMode = decimal ? 'decimal' : 'numeric';
     input.autocomplete = 'off';
-    input.maxLength = 6;
+    input.maxLength = 10;
     return input;
   }
+
+  // 分子、分母兩格上下排
+  function makeFraction(fields) {
+    const frac = elem('div', 'quiz-frac');
+    const num = makeInput();
+    const den = makeInput();
+    num.setAttribute('aria-label', '分子');
+    den.setAttribute('aria-label', '分母');
+    frac.append(num, elem('div', 'quiz-frac-line'), den);
+    fields.push(num, den);
+    return frac;
+  }
+
+  const same = (a, b) => Math.abs(a - b) < 1e-9;
 
   function hasWriting(i) {
     return sheets[i].some((s) => s.tool === 'pen');
@@ -109,6 +124,7 @@ window.MathQuiz = (() => {
   // 孩子填的答案，排成和正確答案一樣的樣子
   function givenText(q, values) {
     if (q.layout === 'fraction') return `[[${values[0]}/${values[1]}]]`;
+    if (q.layout === 'mixed') return `${values[0]}[[${values[1]}/${values[2]}]]`;
     return q.inputs.map((spec, i) => [spec.prefix, values[i], spec.suffix].filter(Boolean).join(' ')).join('　');
   }
 
@@ -134,18 +150,19 @@ window.MathQuiz = (() => {
         answer.appendChild(btn);
       }
     } else if (q.layout === 'fraction') {
-      const frac = elem('div', 'quiz-frac');
-      const num = makeInput();
-      const den = makeInput();
-      num.setAttribute('aria-label', '分子');
-      den.setAttribute('aria-label', '分母');
-      frac.append(num, elem('div', 'quiz-frac-line'), den);
-      fields.push(num, den);
-      answer.append(frac);
+      answer.append(makeFraction(fields));
+    } else if (q.layout === 'mixed') {
+      // 帶分數：整數一格，旁邊是分數
+      const whole = makeInput();
+      whole.setAttribute('aria-label', '整數');
+      whole.classList.add('quiz-whole');
+      fields.push(whole);
+      answer.append(whole, makeFraction(fields));
     } else {
+      const decimal = q.inputs.some((spec) => !Number.isInteger(spec.answer));
       for (const spec of q.inputs) {
         if (spec.prefix) answer.appendChild(elem('span', 'quiz-unit-label', spec.prefix));
-        const input = makeInput();
+        const input = makeInput(decimal);
         fields.push(input);
         answer.appendChild(input);
         if (spec.suffix) answer.appendChild(elem('span', 'quiz-unit-label', spec.suffix));
@@ -187,18 +204,25 @@ window.MathQuiz = (() => {
         answers[index] = picked.textContent;
       } else {
         const values = fields.map((f) => f.value.normalize('NFKC').trim());
-        const empty = fields.find((f, i) => !/^\d+$/.test(values[i]));
+        const empty = fields.find((f, i) => !/^\d+(\.\d+)?$/.test(values[i]));
         if (empty) {
           nudge(empty);
           empty.focus();
           return;
         }
-        if (q.layout === 'fraction') {
+        const nums = values.map(Number);
+        const want = q.inputs.map((spec) => spec.answer);
+        if (q.exact) {
+          // 要寫成指定的樣子（例如約成最簡分數、化成帶分數），每一格都要一樣
+          correct = nums.every((v, i) => same(v, want[i]));
+        } else if (q.layout === 'fraction') {
           // 等值分數也算對，例如 8 分之 4 寫成 2 分之 1
-          const [n, d] = values.map(Number);
-          correct = d > 0 && n * q.inputs[1].answer === q.inputs[0].answer * d;
+          correct = nums[1] > 0 && same(nums[0] * want[1], want[0] * nums[1]);
+        } else if (q.layout === 'mixed') {
+          // 帶分數比大小一樣就算對，例如 1 又 4/4 和 2
+          correct = nums[2] > 0 && same(nums[0] + nums[1] / nums[2], want[0] + want[1] / want[2]);
         } else {
-          correct = q.inputs.every((spec, i) => Number(values[i]) === spec.answer);
+          correct = nums.every((v, i) => same(v, want[i]));
         }
         answers[index] = givenText(q, values.map(Number));
         fields.forEach((f) => { f.readOnly = true; });

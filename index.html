@@ -19,6 +19,7 @@
     <div id="menu" class="menu" role="menu" hidden>
       <button type="button" role="menuitem" data-menu="report">📊 我的成績單</button>
       <button type="button" role="menuitem" data-menu="role">🎭 更換角色</button>
+      <button type="button" role="menuitem" data-menu="grade">🎓 更改年級</button>
       <button type="button" role="menuitem" data-menu="pin">🔑 修改密碼</button>
       <button type="button" role="menuitem" data-menu="new" class="museum-only own-only">＋ 新展台</button>
       <!-- 手機編輯時，上方只放取消和儲存，這兩個收到選單裡 -->
@@ -187,6 +188,7 @@
         <div id="report-praise" class="report-praise"></div>
       </div>
     </div>
+    <div id="report-tabs" class="report-tabs" role="tablist" aria-label="依學期查看"></div>
     <div id="report-stats" class="report-stats"></div>
     <h3>最近的練習</h3>
     <div id="report-recent" class="report-recent"></div>
@@ -198,6 +200,13 @@
     <p>送你 <b id="gift-count"></b> 塊恐龍化石！打開化石庫看看，拼出你的第一隻恐龍吧。</p>
     <div id="gift-list" class="gift-list"></div>
     <form method="dialog"><button>太棒了！</button></form>
+  </dialog>
+
+  <dialog id="grade-dialog" class="help grade-dialog">
+    <h2>🎓 更改年級</h2>
+    <p>選擇你現在的年級和學期，數學題目會跟著改變。</p>
+    <div id="grade-dialog-list" class="grade-list"></div>
+    <form method="dialog"><button>完成</button></form>
   </dialog>
 
   <dialog id="role-dialog" class="help role-dialog">
@@ -264,7 +273,20 @@
   <script src="js/fossils.js"></script>
   <script src="js/pedestals.js"></script>
   <script src="js/showcase.js"></script>
+  <!-- 數學題庫：照年級順序，登入畫面和選單的年級選項就是這個順序 -->
+  <script src="js/math/kit.js"></script>
+  <script src="js/math/grade1a.js"></script>
+  <script src="js/math/grade1b.js"></script>
+  <script src="js/math/grade2a.js"></script>
+  <script src="js/math/grade2b.js"></script>
   <script src="js/math/grade3a.js"></script>
+  <script src="js/math/grade3b.js"></script>
+  <script src="js/math/grade4a.js"></script>
+  <script src="js/math/grade4b.js"></script>
+  <script src="js/math/grade5a.js"></script>
+  <script src="js/math/grade5b.js"></script>
+  <script src="js/math/grade6a.js"></script>
+  <script src="js/math/grade6b.js"></script>
   <script src="js/config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/scratchpad.js"></script>

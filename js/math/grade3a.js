@@ -1,19 +1,22 @@
 // 小三(上) 數學題庫。每個 topics 裡的函式會隨機產生一題，一次練習從不同單元抽題。
 //
-// 新增年級：複製這個檔案改內容，在 index.html 加一行 <script>，登入畫面就會出現新的年級選項。
+// 新增年級：複製這個檔案改內容，在 index.html 加一行 <script>（照年級順序），登入畫面和選單就會出現新的年級選項。
 //   id     ：英文代號（存在玩家資料裡，加入後不要改）
 //   name   ：顯示名稱
 //   short  ：簡短名稱，顯示在左上角的博物館名稱後面
 //   topics ：出題函式，回傳 {
 //     unit     ：單元名稱
 //     text     ：題目。[[3/8]] 會顯示成分數（8 分之 3）
-//     inputs   ：要填的空格 [{ prefix, suffix, answer }]；layout: 'fraction' 時是 [分子, 分母]
+//     inputs   ：要填的空格 [{ prefix, suffix, answer }]，答案可以是整數或小數
+//                layout: 'fraction' 時是 [分子, 分母]（等值分數也算對）
+//                layout: 'mixed' 時是 [整數, 分子, 分母]（帶分數，數值一樣就算對）
+//     exact    ：（選填）true 時每一格都要和答案一樣，例如「約成最簡分數」
 //     choices  ：（選擇題）選項文字；answer 是正確的那一個
 //     solution ：答錯時顯示的正確答案
 //   }
+// 共用的小工具（亂數、最大公因數、小數格式…）在 js/math/kit.js。
 (() => {
-  const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-  const pick = (list) => list[rint(0, list.length - 1)];
+  const { rint, pick } = window.MathKit;
 
   const topics = [
     // ── 10000 以內的數 ──
@@ -223,5 +226,5 @@
   ];
 
   window.MATH_GRADES = window.MATH_GRADES || [];
-  window.MATH_GRADES.push({ id: 'g3a', name: '小三(上)', short: '小三', topics });
+  window.MATH_GRADES.push({ id: 'g3a', name: '小三(上)', short: '小三上', topics });
 })();
