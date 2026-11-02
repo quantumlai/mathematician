@@ -3,23 +3,62 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>我的恐龍博物館</title>
+  <title>恐龍博物館</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="mode-museum">
+<body class="mode-login">
   <header class="topbar">
-    <h1>🦴 我的恐龍博物館</h1>
-    <div class="topbar-actions museum-only">
+    <h1><span id="museum-title">🦴 恐龍博物館</span><span id="player-chip" class="player-chip"></span></h1>
+    <!-- 自己的博物館 -->
+    <div class="topbar-actions museum-only own-only">
+      <button id="btn-quiz" type="button" class="dig">⛏️ 採集新化石<span class="long">（數學）</span></button>
+      <button id="btn-visit" type="button">🏛️ 參觀<span class="long">其他博物館</span></button>
+      <button id="btn-new" type="button">＋ 新展台</button>
       <button id="btn-help" type="button">玩法</button>
-      <button id="btn-new" type="button" class="primary">＋ 新展台</button>
+      <button id="btn-logout" type="button">登出</button>
+    </div>
+    <!-- 參觀別人的博物館 -->
+    <div class="topbar-actions museum-only visit-only">
+      <button id="btn-visit-other" type="button">🏛️ 參觀<span class="long">其他博物館</span></button>
+      <button id="btn-home" type="button" class="primary">回到我的博物館</button>
     </div>
     <div class="topbar-actions edit-only">
+      <button id="btn-quiz-edit" type="button" class="dig">⛏️ 採集新化石<span class="long">（數學）</span></button>
       <button id="btn-clear" type="button">全部收回</button>
       <button id="btn-remove" type="button" class="danger">拆除展台</button>
       <button id="btn-cancel" type="button">取消</button>
       <button id="btn-save" type="button" class="primary">儲存</button>
     </div>
   </header>
+
+  <!-- 登入：背後是範例展品，前面是輸入玩家代號的卡片 -->
+  <main id="login" class="login login-only">
+    <div id="showcase" class="showcase" aria-hidden="true">
+      <div id="showcase-hall" class="hall"></div>
+    </div>
+    <div class="login-card">
+      <div class="login-sign">
+        <div class="login-sign-title">恐龍博物館</div>
+        <div class="login-sign-sub">DINOSAUR MUSEUM</div>
+      </div>
+
+      <form id="login-name" class="login-step">
+        <label for="player-name">請輸入你的玩家代號</label>
+        <input id="player-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="例如：寬爸">
+        <p id="login-error" class="login-error" role="alert"></p>
+        <button type="submit" class="primary">下一步</button>
+      </form>
+
+      <form id="login-confirm" class="login-step" hidden>
+        <p id="login-greet" class="login-greet"></p>
+        <div class="login-who">玩家代號：<b id="login-who"></b></div>
+        <div id="grade-label" class="grade-label"></div>
+        <div id="grade-list" class="grade-list"></div>
+        <button id="btn-enter" type="submit" class="primary"></button>
+        <button id="btn-back" type="button" class="link-button">不是我，重新輸入</button>
+      </form>
+    </div>
+  </main>
 
   <!-- 博物館：左右捲動遊覽所有展台 -->
   <main id="museum" class="museum museum-only" aria-label="博物館大廳">
@@ -34,7 +73,7 @@
       <h2>展示台</h2>
       <div id="pedestal-list" class="pedestal-list"></div>
       <h2>化石庫</h2>
-      <p class="library-hint">點一下或拖到工作台。每塊骨頭整座博物館只能用一次，用過的會變淡</p>
+      <p class="library-hint">點一下或拖到工作台。每塊骨頭整座博物館只能用一次，用過的會變淡；暗暗的是還沒採集到的骨頭</p>
       <div id="library-list"></div>
     </aside>
 
@@ -67,33 +106,56 @@
     <button type="button" data-action="delete" class="danger" title="收回化石庫 (Delete)">收回</button>
   </nav>
 
+  <!-- 數學練習（蓋在博物館或編輯模式上面，關掉後回到原本的畫面） -->
+  <section id="quiz" class="quiz" hidden aria-label="數學練習">
+    <div class="quiz-card">
+      <header class="quiz-head">
+        <div id="quiz-title" class="quiz-title"></div>
+        <button id="quiz-close" type="button" class="quiz-close" title="離開">✕</button>
+      </header>
+      <div id="quiz-progress" class="quiz-progress"></div>
+      <div id="quiz-body" class="quiz-body"></div>
+    </div>
+  </section>
+
+  <dialog id="visit" class="help visit">
+    <h2>🏛️ 參觀其他博物館</h2>
+    <p>可以參觀，但不能改動別人的展品喔！</p>
+    <div id="visit-list" class="visit-list"></div>
+    <form method="dialog"><button>關閉</button></form>
+  </dialog>
+
   <dialog id="help" class="help">
     <h2>玩法</h2>
+    <h3>採集化石</h3>
+    <ul>
+      <li>按<b>⛏️ 採集新化石（數學）</b>，完成 10 題數學練習</li>
+      <li>答對 8 題以上，就能挖到一塊新的恐龍骨頭！會先補齊你已經有的恐龍還缺的骨頭</li>
+    </ul>
     <h3>逛博物館</h3>
     <ul>
       <li><b>拖曳大廳</b>、滑鼠滾輪或 ← / → 鍵：左右走動參觀</li>
-      <li>點一下展品：走到它前面</li>
-      <li>點展品下方的<b>✏️ 重新組裝</b>：進入編輯模式</li>
-      <li><b>＋ 新展台</b>：多擺一隻恐龍</li>
+      <li>點展品下方的<b>✏️ 重新組裝</b>：進入編輯模式；<b>＋ 新展台</b>：多擺一隻恐龍</li>
+      <li><b>🏛️ 參觀其他博物館</b>：去看看其他玩家的作品</li>
     </ul>
     <h3>編輯模式</h3>
     <ul>
       <li><b>拖曳骨頭</b>：移動位置；拖曳 <b>⟳</b> 旋轉（Shift 每 15° 對齊）、拖曳 <b>⤡</b> 縮放</li>
       <li><b>兩指</b>：在平板上同時移動、旋轉、縮放</li>
-      <li><b>滑鼠滾輪</b>：旋轉選取的骨頭；Shift + 滾輪縮放</li>
       <li><b>鍵盤</b>：方向鍵移動、Q / E 旋轉、F 鏡像、Delete 收回</li>
-      <li>化石庫裡有你擁有的每一組素材，例如暴龍 (1)、暴龍 (2)。每塊骨頭整座博物館只能用一次，用過的會變淡；同一個展台可以混用不同組的骨頭</li>
-      <li>收回骨頭或拆除展台，骨頭會還回化石庫</li>
-      <li>左邊可以換<b>展示台</b>（展示台不限數量）；點下方的<b>展品名稱</b>幫恐龍取名字</li>
-      <li>按<b>儲存</b>，你拼好的樣子就會放上展示台</li>
+      <li>化石庫裡每塊骨頭整座博物館只能用一次，用過的會變淡；收回骨頭或拆除展台會還回化石庫</li>
+      <li>左邊可以換<b>展示台</b>；點下方的<b>展品名稱</b>幫恐龍取名字；按<b>儲存</b>放上展示台</li>
     </ul>
-    <p>博物館會自動儲存在這台電腦的瀏覽器裡。</p>
-    <form method="dialog"><button>開始參觀！</button></form>
+    <p>博物館存在這台電腦的瀏覽器裡。</p>
+    <form method="dialog"><button>知道了！</button></form>
   </dialog>
 
   <script src="js/fossils.js"></script>
-  <script src="js/inventory.js"></script>
   <script src="js/pedestals.js"></script>
+  <script src="js/showcase.js"></script>
+  <script src="js/math/grade3a.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/quiz.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

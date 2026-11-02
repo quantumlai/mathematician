@@ -17,8 +17,12 @@
   const DISPLAY_MAX_W = 640;  // 化石成品最大的寬、高，超過會等比縮小
   const DISPLAY_MAX_H = 480;
 
-  const SAVE_KEY = 'fossil-museum-v3';
-  const OLD_SAVE_KEY = 'fossil-museum-v2'; // 只有一個展場的舊版存檔，第一次開啟時轉成一個展台
+  const QUIZ_PASS = 8;        // 數學練習答對幾題可以得到一塊骨頭
+  const LAST_PLAYER_KEY = 'fossil-museum-last-player'; // 登入畫面預先填好上次的玩家代號
+
+  // 還沒有玩家代號時的舊版存檔，會交給第一個建立的玩家，連同當時擁有的素材
+  const LEGACY_KEYS = ['fossil-museum-v3', 'fossil-museum-v2'];
+  const LEGACY_SETS = { 't-rex': 2 };
 
   const $ = (sel) => document.querySelector(sel);
   const viewport = $('#viewport');
@@ -126,9 +130,13 @@
   }
 
   // ── 展品資料 ──────────────────────────────────────
+  // 登入的玩家是 player；正在看的博物館主人是 owner（參觀別人時兩者不同）。
+  // exhibits 是 owner 的展台。
   // exhibit = { id, title, pedestal, pieces: [{ part, set, x, y, rot, scale, flip }] }
   // pieces 用的是工作台座標，博物館裡會自動縮放、擺到展示台上。
   // set 是這塊骨頭來自第幾組素材（1 起算），例如 { part: 't-rex/skull', set: 2 } 是暴龍 (2) 的頭骨
+  let player = null;
+  let owner = null;
   let exhibits = [];
 
   function newId() {
@@ -141,7 +149,7 @@
       .filter((p) => p && typeof p.part === 'string')
       .map((p) => ({
         part: p.part,
-        set: Math.floor(+p.set) || 0, // 舊存檔沒有 set，載入後由 enforceInventory 補上
+        set: Math.floor(+p.set) || 0, // 舊存檔沒有 set，由 enforceInventory 補上
         x: +p.x || 0,
         y: +p.y || 0,
         rot: +p.rot || 0,
@@ -161,56 +169,54 @@
     return part.baseScale ?? DEFAULT_SIZE / Math.max(part.w, part.h);
   }
 
-  // ── 素材 ──────────────────────────────────────────
-  // 化石庫是有限的：擁有幾組恐龍，化石庫就有幾組骨頭，每一塊在整座博物館只能用一次。
-  function ownedSets(dinoId) {
-    return Math.max(0, Math.floor(+(window.FOSSIL_INVENTORY || {})[dinoId] || 0));
-  }
-
+  // ── 擁有的骨頭 ────────────────────────────────────
+  // 化石庫是有限的：玩家只能用數學練習得到的骨頭（player.bones），每一塊在整座博物館只能用一次。
   function boneKey(partKey, set) {
     return `${partKey}#${set}`;
+  }
+
+  function ownedBones() {
+    return new Set((player?.bones || []).map((b) => boneKey(b.part, b.set)));
   }
 
   // 已經用掉的骨頭：其他展台上的 + 工作台上的
   function usedBones() {
     const used = new Set(pieces.map((p) => boneKey(p.part, p.set)));
-    for (const ex of exhibits) {
+    for (const ex of player?.exhibits || []) {
       if (ex === editing?.exhibit) continue;
       for (const p of ex.pieces) used.add(boneKey(p.part, p.set));
     }
     return used;
   }
 
-  // 載入存檔後檢查每塊骨頭：沒有組別（舊存檔）或重複的，改用還沒用過的那一組；
-  // 擁有的組數不夠時，從最新的展台開始拿掉（素材被收回時也一樣）。
-  function enforceInventory() {
+  // 檢查玩家展台上的每塊骨頭：沒有組別（舊存檔）或重複的，改用還沒用過、同部位的另一塊；
+  // 沒有擁有的骨頭就從最新的展台開始拿掉。回傳是否有改動。
+  function enforceInventory(p) {
+    const owned = new Set(p.bones.map((b) => boneKey(b.part, b.set)));
     const used = new Set();
-    const all = exhibits.flatMap((ex) => ex.pieces);
-    const valid = (p) => p.set >= 1 && p.set <= ownedSets(p.part.split('/')[0]);
     const unplaced = new Set();
-    for (const p of all) {
-      const key = boneKey(p.part, p.set);
-      if (valid(p) && !used.has(key)) used.add(key);
-      else unplaced.add(p);
+    for (const piece of p.exhibits.flatMap((ex) => ex.pieces)) {
+      const key = boneKey(piece.part, piece.set);
+      if (owned.has(key) && !used.has(key)) used.add(key);
+      else unplaced.add(piece);
     }
-    for (const p of unplaced) {
-      const owned = ownedSets(p.part.split('/')[0]);
-      let set = 1;
-      while (set <= owned && used.has(boneKey(p.part, set))) set++;
-      if (set <= owned) {
-        p.set = set;
-        used.add(boneKey(p.part, set));
-        unplaced.delete(p);
+    for (const piece of unplaced) {
+      const free = p.bones.find((b) => b.part === piece.part && !used.has(boneKey(b.part, b.set)));
+      if (free) {
+        piece.set = free.set;
+        used.add(boneKey(free.part, free.set));
+        unplaced.delete(piece);
       }
     }
     if (!unplaced.size) return false;
-    for (const ex of exhibits) ex.pieces = ex.pieces.filter((p) => !unplaced.has(p));
+    for (const ex of p.exhibits) ex.pieces = ex.pieces.filter((piece) => !unplaced.has(piece));
     return true;
   }
 
   function addPiece(partKey, set, x, y, extra = {}) {
     const part = parts[partKey];
-    if (!part || usedBones().has(boneKey(partKey, set))) return null;
+    const key = boneKey(partKey, set);
+    if (!part || !ownedBones().has(key) || usedBones().has(key)) return null;
     const piece = {
       uid: nextUid++,
       part: partKey,
@@ -501,7 +507,8 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.isContentEditable || e.target.closest?.('dialog')) return;
+    if (e.target.isContentEditable || e.target.closest?.('dialog, input, #quiz')) return;
+    if (window.MathQuiz.isOpen() || document.body.classList.contains('mode-login')) return;
     if (!editing) {
       const dir = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
       if (dir) {
@@ -533,28 +540,40 @@
   });
 
   // ── 化石庫 ────────────────────────────────────────
-  // 每組素材一個分類：暴龍 (1)、暴龍 (2)……每個縮圖就是一塊骨頭
+  // 每組素材一個分類：暴龍 (1)、暴龍 (2)……每個縮圖就是一塊骨頭。
+  // 還沒採集到的骨頭也會列出來（暗暗的），讓玩家知道還缺哪些。
   const thumbs = new Map(); // boneKey → 化石庫裡的縮圖
+  let freshBone = null;     // 剛採集到的骨頭，在化石庫閃一下
 
-  // 用過的骨頭（在任何展台或工作台上）顏色變淡
   function refreshLibrary() {
     const used = usedBones();
+    const owned = ownedBones();
     for (const [key, thumb] of thumbs) {
-      const isUsed = used.has(key);
+      const isOwned = owned.has(key);
+      const isUsed = isOwned && used.has(key);
+      thumb.classList.toggle('locked', !isOwned);
       thumb.classList.toggle('used', isUsed);
-      thumb.title = isUsed ? `${thumb.dataset.name}（已經用過了）` : thumb.dataset.name;
+      thumb.classList.toggle('fresh', key === freshBone);
+      thumb.title = !isOwned ? `${thumb.dataset.name}（還沒採集到）`
+        : isUsed ? `${thumb.dataset.name}（已經用過了）` : thumb.dataset.name;
     }
   }
 
   function buildLibrary() {
     const list = $('#library-list');
     list.innerHTML = '';
+    thumbs.clear();
+    const owned = ownedBones();
     for (const dino of window.FOSSIL_LIBRARY || []) {
-      for (let set = 1; set <= ownedSets(dino.id); set++) {
+      const sets = [...new Set((player?.bones || [])
+        .filter((b) => b.part.startsWith(`${dino.id}/`))
+        .map((b) => b.set))].sort((a, b) => a - b);
+      for (const set of sets) {
         const group = document.createElement('div');
         group.className = 'dino-group';
         const title = document.createElement('h3');
-        title.textContent = `${dino.name} (${set})`;
+        const have = dino.parts.filter((part) => owned.has(boneKey(`${dino.id}/${part.id}`, set))).length;
+        title.append(`${dino.name} (${set})`, elem('span', 'dino-progress', `${have}/${dino.parts.length}`));
         const grid = document.createElement('div');
         grid.className = 'dino-parts';
         for (const part of dino.parts) {
@@ -576,19 +595,26 @@
         list.appendChild(group);
       }
     }
-    if (!list.children.length) list.appendChild(elem('p', 'library-hint', '還沒有化石素材'));
+    if (!list.children.length) {
+      list.appendChild(elem('p', 'library-empty', '還沒有化石，按上方「⛏️ 採集新化石」去挖挖看！'));
+    }
     refreshLibrary();
   }
 
   // 從化石庫拖進工作台；只點一下就放在工作台中間附近。
-  // 用過的骨頭不能再拿；它在工作台上的話，點它會選取那一塊。
+  // 還沒採集到、用過的骨頭不能再拿；用過的骨頭在工作台上的話，點它會選取那一塊。
   function enableThumbDrag(thumb, key, set) {
     let ghost = null;
     let start = null;
 
     thumb.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
-      if (usedBones().has(boneKey(key, set))) {
+      const bone = boneKey(key, set);
+      if (bone === freshBone) {
+        freshBone = null;
+        thumb.classList.remove('fresh');
+      }
+      if (!ownedBones().has(bone) || usedBones().has(bone)) {
         const existing = pieces.find((p) => p.part === key && p.set === set);
         if (existing) {
           select(existing);
@@ -733,21 +759,39 @@
     return node;
   }
 
+  const readonly = () => owner !== player;
+
   function buildEntrance() {
     const entrance = elem('div', 'entrance');
     entrance.style.width = `${ENTRANCE_W}px`;
     const sign = elem('div', 'entrance-sign');
-    sign.append(elem('div', 'entrance-title', '我的恐龍博物館'), elem('div', 'entrance-sub', 'DINOSAUR MUSEUM'));
-    const count = elem('div', 'entrance-count',
-      exhibits.length ? `目前展出 ${exhibits.length} 件化石` : '還沒有展品，蓋一個展台吧！');
-    entrance.append(sign, elem('div', 'entrance-door'), count, elem('div', 'entrance-arrow', '往這邊參觀 →'));
+    const title = elem('div', 'entrance-title', museumName(owner));
+    // 名字長短不一，字縮小到招牌放得下一行（招牌內寬約 480，每個字再加 6 的字距）
+    title.style.fontSize = `${Math.min(58, Math.floor(480 / [...title.textContent].length - 6))}px`;
+    sign.append(title, elem('div', 'entrance-sub', 'DINOSAUR MUSEUM'));
+    let text;
+    if (readonly()) {
+      text = exhibits.length ? `目前展出 ${exhibits.length} 件化石` : '這裡還沒有展品';
+    } else {
+      const bones = player.bones.length;
+      text = exhibits.length ? `目前展出 ${exhibits.length} 件化石・收藏 ${bones} 塊骨頭`
+        : bones ? `收藏 ${bones} 塊骨頭，蓋一個展台吧！` : '還沒有化石，先去採集吧！';
+    }
+    entrance.append(sign, elem('div', 'entrance-door'), elem('div', 'entrance-count', text));
+    if (!readonly()) {
+      const dig = elem('button', 'entrance-dig dig', '⛏️ 我要採集新化石（數學）');
+      dig.type = 'button';
+      dig.dataset.quiz = '';
+      entrance.appendChild(dig);
+    }
+    entrance.appendChild(elem('div', 'entrance-arrow', '往這邊參觀 →'));
     return entrance;
   }
 
-  function buildBay(exhibit, index) {
+  function buildBay(exhibit, index, left, editable) {
     const bay = elem('div', 'bay');
-    bay.dataset.id = exhibit.id;
-    bay.style.left = `${ENTRANCE_W + index * BAY_W}px`;
+    if (exhibit.id) bay.dataset.id = exhibit.id;
+    bay.style.left = `${left}px`;
     bay.style.width = `${BAY_W}px`;
     bay.append(elem('div', 'column'), elem('div', 'spotlight'), elem('div', 'light-pool'));
 
@@ -779,7 +823,7 @@
         const part = parts[p.part];
         if (!part) continue;
         const img = makePieceImg(part);
-        img.style.transform = pieceTransform(p, part, box.x, box.y);
+        img.style.transform = pieceTransform({ flip: false, ...p }, part, box.x, box.y);
         inner.appendChild(img);
       }
       display.appendChild(inner);
@@ -795,17 +839,19 @@
       elem('div', 'exhibit-no', `No. ${String(index + 1).padStart(3, '0')}`),
       elem('div', 'exhibit-title', exhibit.title || '無名恐龍'),
     );
-    const btn = elem('button', 'exhibit-edit', '✏️ 重新組裝');
-    btn.type = 'button';
-    btn.dataset.edit = exhibit.id;
-    placard.appendChild(btn);
+    if (editable) {
+      const btn = elem('button', 'exhibit-edit', '✏️ 重新組裝');
+      btn.type = 'button';
+      btn.dataset.edit = exhibit.id;
+      placard.appendChild(btn);
+    }
     bay.appendChild(placard);
     return bay;
   }
 
-  function buildAddBay(index) {
+  function buildAddBay(left) {
     const bay = elem('div', 'bay bay-add');
-    bay.style.left = `${ENTRANCE_W + index * BAY_W}px`;
+    bay.style.left = `${left}px`;
     bay.style.width = `${BAY_W}px`;
     const btn = elem('button', 'add-pedestal', '＋ 新增展台');
     btn.type = 'button';
@@ -814,12 +860,17 @@
     return bay;
   }
 
+  function museumName(p) {
+    return `${p.name}的恐龍博物館`;
+  }
+
   function renderMuseum() {
+    const editable = !readonly();
     hall.innerHTML = '';
     hall.append(elem('div', 'hall-wall'), elem('div', 'hall-floor'), buildEntrance());
-    exhibits.forEach((ex, i) => hall.appendChild(buildBay(ex, i)));
-    hall.appendChild(buildAddBay(exhibits.length));
-    hallContentW = ENTRANCE_W + (exhibits.length + 1) * BAY_W + END_PAD;
+    exhibits.forEach((ex, i) => hall.appendChild(buildBay(ex, i, ENTRANCE_W + i * BAY_W, editable)));
+    if (editable) hall.appendChild(buildAddBay(ENTRANCE_W + exhibits.length * BAY_W));
+    hallContentW = ENTRANCE_W + (exhibits.length + (editable ? 1 : 0)) * BAY_W + END_PAD;
     fitHall();
   }
 
@@ -833,6 +884,23 @@
     hall.style.transform = `scale(${hallScale})`;
     hallSize.style.width = `${w * hallScale}px`;
     hallSize.style.height = `${h}px`;
+  }
+
+  // 登入畫面背後的範例展品，置中排列、牆壁延伸到整個畫面
+  function renderShowcase() {
+    const box = $('#showcase');
+    const target = $('#showcase-hall');
+    const h = box.clientHeight;
+    if (!h) return;
+    const s = h / HALL_H;
+    const list = window.SHOWCASE || [];
+    const w = Math.max(list.length * BAY_W, box.clientWidth / s);
+    const left0 = (w - list.length * BAY_W) / 2;
+    target.innerHTML = '';
+    target.append(elem('div', 'hall-wall'), elem('div', 'hall-floor'));
+    list.forEach((ex, i) => target.appendChild(buildBay(ex, i, left0 + i * BAY_W, false)));
+    target.style.width = `${w}px`;
+    target.style.transform = `translateX(${(box.clientWidth - w * s) / 2}px) scale(${s})`;
   }
 
   function scrollToExhibit(id, behavior = 'smooth') {
@@ -872,13 +940,17 @@
       suppressClick = false;
       return;
     }
+    if (e.target.closest('[data-quiz]')) {
+      startQuiz();
+      return;
+    }
     const editBtn = e.target.closest('[data-edit]');
-    if (editBtn) {
+    if (editBtn && !readonly()) {
       const ex = exhibits.find((x) => x.id === editBtn.dataset.edit);
       if (ex) openEditor(ex, false);
       return;
     }
-    if (e.target.closest('[data-new]')) {
+    if (e.target.closest('[data-new]') && !readonly()) {
       newExhibit();
       return;
     }
@@ -894,6 +966,7 @@
   }, { passive: false });
 
   // ── 模式切換 ──────────────────────────────────────
+  // mode：login（輸入玩家代號）、museum（博物館大廳）、edit（重新組裝一個展台）
   // editing = { exhibit, isNew, pedestal }；isNew 的展台按儲存才會加進博物館
   let editing = null;
   let dirty = false;
@@ -903,8 +976,13 @@
   }
 
   function setMode(mode) {
-    document.body.classList.toggle('mode-museum', mode === 'museum');
-    document.body.classList.toggle('mode-edit', mode === 'edit');
+    for (const m of ['login', 'museum', 'edit']) document.body.classList.toggle(`mode-${m}`, m === mode);
+    document.body.classList.toggle('visiting', mode === 'museum' && readonly());
+    const title = owner ? museumName(owner) : '恐龍博物館';
+    $('#museum-title').textContent = `🦴 ${title}`;
+    document.title = title;
+    $('#player-chip').textContent = player && mode !== 'login'
+      ? (readonly() ? `參觀中・${player.name}` : `${player.name}・${gradeName(player.grade)}`) : '';
   }
 
   function openEditor(exhibit, isNew) {
@@ -926,8 +1004,7 @@
     dirty = false;
     select(null);
     clearAll();
-    setMode('museum');
-    renderMuseum();
+    showMuseum(player);
     if (focusId) scrollToExhibit(focusId, 'instant');
   }
 
@@ -935,23 +1012,53 @@
     openEditor({ id: newId(), title: '', pedestal: defaultPedestal, pieces: [] }, true);
   }
 
-  function saveEditor() {
+  async function saveEditor() {
     const { exhibit, isNew, pedestal } = editing;
     exhibit.pieces = pieces.map(({ part, set, x, y, rot, scale, flip }) => ({ part, set, x, y, rot, scale, flip }));
     exhibit.title = placardTitle.textContent.trim();
     exhibit.pedestal = pedestal;
-    if (isNew) exhibits.push(exhibit);
-    saveMuseum();
-    closeEditor(exhibit.id);
+    if (isNew) player.exhibits.push(exhibit);
+    if (await savePlayer()) closeEditor(exhibit.id);
+  }
+
+  // 看某個玩家的博物館；不是自己的話只能參觀
+  function showMuseum(who) {
+    owner = who;
+    exhibits = who.exhibits;
+    setMode('museum');
+    renderMuseum();
+    museum.scrollLeft = 0;
   }
 
   // ── 存檔 ──────────────────────────────────────────
-  function saveMuseum() {
+  async function savePlayer() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ exhibits }));
+      await window.PlayerStore.save(player);
+      return true;
     } catch (err) {
-      // 無痕模式等情況存不了，不影響遊玩
+      console.error(err);
+      alert('存檔失敗了！可能是瀏覽器的無痕模式，或儲存空間不夠。');
+      return false;
     }
+  }
+
+  function cleanExhibits(list) {
+    if (!Array.isArray(list)) return [];
+    return list.filter(Boolean).map((ex) => ({
+      id: String(ex.id || newId()),
+      title: typeof ex.title === 'string' ? ex.title : '',
+      pedestal: typeof ex.pedestal === 'string' ? ex.pedestal : defaultPedestal,
+      pieces: cleanPieces(ex.pieces),
+    }));
+  }
+
+  function cleanPlayer(p) {
+    return {
+      ...p,
+      bones: Array.isArray(p.bones) ? p.bones.filter((b) => b && typeof b.part === 'string' && b.set >= 1) : [],
+      exhibits: cleanExhibits(p.exhibits),
+      quizzes: Array.isArray(p.quizzes) ? p.quizzes : [],
+    };
   }
 
   function readJSON(key) {
@@ -962,30 +1069,271 @@
     }
   }
 
-  // 回傳是否有存檔（沒有代表第一次來玩）
-  function loadMuseum() {
-    const data = readJSON(SAVE_KEY);
-    if (data && Array.isArray(data.exhibits)) {
-      exhibits = data.exhibits.filter(Boolean).map((ex) => ({
-        id: String(ex.id || newId()),
-        title: typeof ex.title === 'string' ? ex.title : '',
-        pedestal: typeof ex.pedestal === 'string' ? ex.pedestal : defaultPedestal,
-        pieces: cleanPieces(ex.pieces),
-      }));
-      return true;
+  // 有玩家代號以前的存檔：展台和當時擁有的素材（暴龍 2 組）交給第一個建立的玩家
+  function legacyMuseum() {
+    const v3 = readJSON(LEGACY_KEYS[0]);
+    const v2 = readJSON(LEGACY_KEYS[1]);
+    let list = null;
+    if (v3 && Array.isArray(v3.exhibits)) list = v3.exhibits;
+    else if (v2 && Array.isArray(v2.pieces)) list = [{ title: v2.title, pieces: v2.pieces }];
+    if (!list) return null;
+    const bones = [];
+    for (const dino of window.FOSSIL_LIBRARY || []) {
+      for (let set = 1; set <= (LEGACY_SETS[dino.id] || 0); set++) {
+        for (const part of dino.parts) bones.push({ part: `${dino.id}/${part.id}`, set, at: Date.now() });
+      }
     }
-    const old = readJSON(OLD_SAVE_KEY);
-    if (old && Array.isArray(old.pieces)) {
-      exhibits = [{
-        id: newId(),
-        title: typeof old.title === 'string' ? old.title : '',
-        pedestal: defaultPedestal,
-        pieces: cleanPieces(old.pieces),
-      }];
-      saveMuseum();
-      return true;
+    return { exhibits: cleanExhibits(list), bones };
+  }
+
+  // ── 年級 ──────────────────────────────────────────
+  function gradeOf(id) {
+    return (window.MATH_GRADES || []).find((g) => g.id === id) || null;
+  }
+
+  function gradeName(id) {
+    return gradeOf(id)?.name || '未選年級';
+  }
+
+  // ── 登入 ──────────────────────────────────────────
+  const nameForm = $('#login-name');
+  const confirmForm = $('#login-confirm');
+  const nameInput = $('#player-name');
+  const loginError = $('#login-error');
+  let pending = null; // { name, existing }：輸入代號後、按下進入前
+
+  function showLoginStep(step) {
+    nameForm.hidden = step !== 'name';
+    confirmForm.hidden = step !== 'confirm';
+  }
+
+  function showLogin() {
+    player = null;
+    owner = null;
+    exhibits = [];
+    pending = null;
+    setMode('login');
+    renderShowcase();
+    showLoginStep('name');
+    loginError.textContent = '';
+    try {
+      nameInput.value = localStorage.getItem(LAST_PLAYER_KEY) || '';
+    } catch (err) {
+      nameInput.value = '';
     }
-    return false;
+    nameInput.focus();
+  }
+
+  function renderGradeChoices(selectedId) {
+    const list = $('#grade-list');
+    list.innerHTML = '';
+    for (const g of window.MATH_GRADES || []) {
+      const label = elem('label', 'grade-option');
+      const radio = elem('input');
+      radio.type = 'radio';
+      radio.name = 'grade';
+      radio.value = g.id;
+      radio.checked = g.id === selectedId;
+      radio.addEventListener('change', updateEnterButton);
+      label.append(radio, elem('span', '', g.name));
+      list.appendChild(label);
+    }
+    updateEnterButton();
+  }
+
+  function chosenGrade() {
+    return confirmForm.querySelector('input[name="grade"]:checked')?.value || null;
+  }
+
+  function updateEnterButton() {
+    $('#btn-enter').disabled = !chosenGrade();
+  }
+
+  nameForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = nameInput.value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+    if (!name) {
+      loginError.textContent = '請輸入玩家代號';
+      nameInput.focus();
+      return;
+    }
+    loginError.textContent = '';
+    const existing = await window.PlayerStore.get(name);
+    pending = { name: existing?.name || name, existing };
+    $('#login-who').textContent = pending.name;
+    if (existing) {
+      $('#login-greet').textContent = `歡迎回來，${existing.name}！`;
+      $('#grade-label').textContent = '你的年級（升級了可以在這裡改）';
+      $('#btn-enter').textContent = '進入我的博物館';
+      renderGradeChoices(gradeOf(existing.grade) ? existing.grade : null);
+    } else {
+      $('#login-greet').textContent = '第一次來，歡迎你！';
+      $('#grade-label').textContent = '請選擇你的年級';
+      $('#btn-enter').textContent = '建立我的博物館';
+      renderGradeChoices(null);
+    }
+    showLoginStep('confirm');
+    $('#btn-enter').focus();
+  });
+
+  $('#btn-back').addEventListener('click', () => {
+    pending = null;
+    showLoginStep('name');
+    nameInput.select();
+    nameInput.focus();
+  });
+
+  confirmForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const grade = chosenGrade();
+    if (!pending || !grade) return;
+    const firstTime = !pending.existing;
+    let p;
+    if (pending.existing) {
+      p = cleanPlayer(pending.existing);
+    } else {
+      const legacy = (await window.PlayerStore.isEmpty()) ? legacyMuseum() : null;
+      p = {
+        id: window.PlayerStore.idOf(pending.name),
+        name: pending.name,
+        grade,
+        bones: legacy?.bones || [],
+        exhibits: legacy?.exhibits || [],
+        quizzes: [],
+        createdAt: Date.now(),
+      };
+    }
+    p.grade = grade;
+    enforceInventory(p);
+    player = p;
+    if (!(await savePlayer())) return;
+    try {
+      localStorage.setItem(LAST_PLAYER_KEY, p.name);
+    } catch (err) {
+      // 記不住也沒關係
+    }
+    buildLibrary();
+    showMuseum(player);
+    if (firstTime) $('#help').showModal();
+  });
+
+  function logout() {
+    if (editing && dirty && !confirm('還沒儲存，確定要登出嗎？這次的修改會不見喔。')) return;
+    if (editing) {
+      editing = null;
+      dirty = false;
+      select(null);
+      clearAll();
+    }
+    showLogin();
+  }
+
+  // ── 參觀其他博物館 ────────────────────────────────
+  async function openVisitList() {
+    const list = $('#visit-list');
+    list.innerHTML = '';
+    const others = (await window.PlayerStore.list())
+      .filter((p) => p.id !== player.id)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    if (!others.length) list.appendChild(elem('p', 'visit-empty', '還沒有其他玩家的博物館。'));
+    for (const info of others) {
+      const btn = elem('button', 'visit-item');
+      btn.type = 'button';
+      btn.append(
+        elem('span', 'visit-name', museumName(info)),
+        elem('span', 'visit-meta', `${gradeName(info.grade)}・${info.exhibitCount} 件展品`),
+      );
+      btn.addEventListener('click', async () => {
+        const other = await window.PlayerStore.get(info.name);
+        $('#visit').close();
+        if (other) showMuseum(cleanPlayer(other));
+      });
+      list.appendChild(btn);
+    }
+    if (owner !== player) {
+      const home = elem('button', 'visit-item visit-home');
+      home.type = 'button';
+      home.append(elem('span', 'visit-name', `回到${museumName(player)}`));
+      home.addEventListener('click', () => {
+        $('#visit').close();
+        showMuseum(player);
+      });
+      list.prepend(home);
+    }
+    $('#visit').showModal();
+  }
+
+  // ── 採集新化石（數學練習）─────────────────────────
+  // 獎勵哪一塊骨頭：先補齊已經有的恐龍還缺的骨頭（組別小的先補），
+  // 都齊了就開始收集已經有的恐龍的下一組；完全沒有化石時隨機挑一種恐龍。
+  function pickRewardBone(p) {
+    const owned = new Set(p.bones.map((b) => boneKey(b.part, b.set)));
+    const dinos = (window.FOSSIL_LIBRARY || []).filter((d) => d.parts.every((part) => parts[`${d.id}/${part.id}`]));
+    if (!dinos.length) return null;
+    const randomOf = (list) => list[Math.floor(Math.random() * list.length)];
+    const setsOf = (dino) => p.bones.filter((b) => b.part.startsWith(`${dino.id}/`)).map((b) => b.set);
+    const ownedDinos = dinos.filter((d) => setsOf(d).length);
+
+    const incomplete = [];
+    for (const dino of ownedDinos) {
+      const maxSet = Math.max(...setsOf(dino));
+      for (let set = 1; set <= maxSet; set++) {
+        const missing = dino.parts.filter((part) => !owned.has(boneKey(`${dino.id}/${part.id}`, set)));
+        if (missing.length) incomplete.push({ dino, set, missing });
+      }
+    }
+    if (incomplete.length) {
+      const lowest = Math.min(...incomplete.map((x) => x.set));
+      const { dino, set, missing } = randomOf(incomplete.filter((x) => x.set === lowest));
+      return { part: `${dino.id}/${randomOf(missing).id}`, set };
+    }
+    // 已經有的恐龍都收齊了：組數最少的那種開始下一組
+    const pool = ownedDinos.length ? ownedDinos : dinos;
+    const fewest = Math.min(...pool.map((d) => new Set(setsOf(d)).size));
+    const dino = randomOf(pool.filter((d) => new Set(setsOf(d)).size === fewest));
+    const set = Math.max(0, ...setsOf(dino)) + 1;
+    return { part: `${dino.id}/${randomOf(dino.parts).id}`, set };
+  }
+
+  function startQuiz() {
+    const grade = gradeOf(player?.grade);
+    if (!grade) {
+      alert('找不到你的年級題目，請重新登入選擇年級。');
+      return;
+    }
+    const fromEditor = !!editing;
+    select(null);
+    window.MathQuiz.start({
+      grade,
+      pass: QUIZ_PASS,
+      async onFinish(score, total) {
+        player.quizzes.push({ at: Date.now(), grade: grade.id, score, total });
+        let bone = null;
+        if (score >= QUIZ_PASS) {
+          bone = pickRewardBone(player);
+          if (bone) player.bones.push({ ...bone, at: Date.now() });
+        }
+        if (!(await savePlayer())) {
+          if (bone) player.bones.pop();
+          throw new Error('save failed');
+        }
+        if (!bone) return null;
+        freshBone = boneKey(bone.part, bone.set);
+        buildLibrary();
+        const [dinoId, partId] = bone.part.split('/');
+        const dino = window.FOSSIL_LIBRARY.find((d) => d.id === dinoId);
+        const part = dino.parts.find((x) => x.id === partId);
+        return {
+          src: part.src,
+          name: `${dino.name} (${bone.set}) 的${part.name}`,
+          hint: fromEditor ? '已經放進左邊的化石庫了！'
+            : '已經放進化石庫了！按「＋ 新展台」或「✏️ 重新組裝」就可以把它擺上去。',
+        };
+      },
+      onClose() {
+        if (!editing && owner === player) renderMuseum();
+      },
+    });
   }
 
   placardTitle.addEventListener('input', markDirty);
@@ -999,17 +1347,23 @@
   // ── 頂部按鈕 ──────────────────────────────────────
   $('#btn-new').addEventListener('click', newExhibit);
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
+  $('#btn-quiz').addEventListener('click', startQuiz);
+  $('#btn-quiz-edit').addEventListener('click', startQuiz);
+  $('#btn-visit').addEventListener('click', openVisitList);
+  $('#btn-visit-other').addEventListener('click', openVisitList);
+  $('#btn-home').addEventListener('click', () => showMuseum(player));
+  $('#btn-logout').addEventListener('click', logout);
   $('#btn-save').addEventListener('click', saveEditor);
   $('#btn-cancel').addEventListener('click', () => {
     if (dirty && !confirm('還沒儲存，確定要放棄這次的修改嗎？')) return;
     closeEditor(editing.isNew ? null : editing.exhibit.id);
   });
-  $('#btn-remove').addEventListener('click', () => {
+  $('#btn-remove').addEventListener('click', async () => {
     if (!confirm('要拆除這個展台嗎？上面的化石會收回化石庫。')) return;
     const { exhibit, isNew } = editing;
     if (!isNew) {
-      exhibits = exhibits.filter((ex) => ex !== exhibit);
-      saveMuseum();
+      player.exhibits = player.exhibits.filter((ex) => ex !== exhibit);
+      if (!(await savePlayer())) return;
     }
     closeEditor(null);
   });
@@ -1029,18 +1383,16 @@
     if (editing) {
       fitWorld();
       renderSelection();
-    } else {
+    } else if (owner) {
       fitHall();
+    } else {
+      renderShowcase();
     }
   });
 
   (async () => {
     await Promise.all([loadLibrary(), loadPedestals()]);
-    buildLibrary();
     buildPedestalPicker();
-    const returning = loadMuseum();
-    if (enforceInventory()) saveMuseum();
-    renderMuseum();
-    if (!returning) $('#help').showModal();
+    showLogin();
   })();
 })();
