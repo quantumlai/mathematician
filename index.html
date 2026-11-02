@@ -21,6 +21,9 @@
       <button type="button" role="menuitem" data-menu="role">🎭 更換角色</button>
       <button type="button" role="menuitem" data-menu="pin">🔑 修改密碼</button>
       <button type="button" role="menuitem" data-menu="new" class="museum-only own-only">＋ 新展台</button>
+      <!-- 手機編輯時，上方只放取消和儲存，這兩個收到選單裡 -->
+      <button type="button" role="menuitem" data-menu="clear" class="edit-only narrow-only">🧺 全部收回</button>
+      <button type="button" role="menuitem" data-menu="remove" class="edit-only narrow-only">🗑️ 拆除展台</button>
       <hr>
       <button type="button" role="menuitem" data-menu="logout">🚪 登出</button>
     </div>
@@ -36,9 +39,9 @@
       <button id="btn-home" type="button" class="primary">回到我的博物館</button>
     </div>
     <div class="topbar-actions edit-only">
-      <button id="btn-quiz-edit" type="button" class="dig">⛏️ 採集新化石<span class="long">（數學）</span></button>
-      <button id="btn-clear" type="button">全部收回</button>
-      <button id="btn-remove" type="button" class="danger">拆除展台</button>
+      <button id="btn-quiz-edit" type="button" class="dig wide-only">⛏️ 採集新化石<span class="long">（數學）</span></button>
+      <button id="btn-clear" type="button" class="wide-only">全部收回</button>
+      <button id="btn-remove" type="button" class="danger wide-only">拆除展台</button>
       <button id="btn-cancel" type="button">取消</button>
       <button id="btn-save" type="button" class="primary">儲存</button>
     </div>
@@ -95,12 +98,19 @@
 
   <!-- 編輯模式：重新組裝一個展台上的化石 -->
   <main class="layout edit-only">
-    <aside class="library" aria-label="化石庫">
-      <h2>展示台</h2>
-      <div id="pedestal-list" class="pedestal-list"></div>
-      <h2>化石庫</h2>
-      <p class="library-hint">點一下或拖到工作台。每塊骨頭整座博物館只能用一次，用過的會變淡；暗暗的是還沒採集到的骨頭</p>
-      <div id="library-list"></div>
+    <aside id="library" class="library" aria-label="化石庫">
+      <!-- 手機上化石庫是底部面板：拖這條把手調整高度，點一下收起或打開 -->
+      <div id="sheet-handle" class="sheet-handle" role="button" tabindex="0" aria-label="拖拉調整化石庫大小">
+        <span class="sheet-grip"></span>
+        <span class="sheet-label">🦴 化石庫・展示台（往上拉看更多）</span>
+      </div>
+      <div class="library-body">
+        <h2>展示台</h2>
+        <div id="pedestal-list" class="pedestal-list"></div>
+        <h2>化石庫</h2>
+        <p class="library-hint">點一下或拖到工作台。每塊骨頭整座博物館只能用一次，用過的會變淡；暗暗的是還沒採集到的骨頭</p>
+        <div id="library-list"></div>
+      </div>
     </aside>
 
     <section id="viewport" class="viewport" aria-label="工作台">
@@ -124,7 +134,7 @@
   <nav id="toolbar" class="toolbar" hidden aria-label="骨頭工具">
     <button type="button" data-action="rotate-left" title="向左轉 (Q)">↺</button>
     <button type="button" data-action="rotate-right" title="向右轉 (E)">↻</button>
-    <button type="button" data-action="flip" title="左右鏡像 (F)">⇋ 鏡像</button>
+    <button type="button" data-action="flip" title="左右鏡像 (F)">⇋<span class="long"> 鏡像</span></button>
     <button type="button" data-action="bigger" title="放大 (+)">＋</button>
     <button type="button" data-action="smaller" title="縮小 (−)">－</button>
     <button type="button" data-action="front" title="移到最上層 (])">置頂</button>

@@ -15,6 +15,10 @@
 html, body {
   margin: 0;
   height: 100%;
+  /* 手機、平板：不要點兩下放大、不要整頁被拉動（iOS 不理會 viewport 的 user-scalable=no） */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
@@ -312,7 +316,8 @@ body.visiting .topbar { background: #2f3a44; }
   overflow-x: auto;
   overflow-y: hidden;
   touch-action: pan-x;
-  background: #1d1814;
+  /* 手機直立時大廳照寬度縮放，上方多出來的地方接著牆壁的顏色 */
+  background: linear-gradient(#3f3229, #5e4b3d);
   cursor: grab;
   scrollbar-color: var(--accent) #2b2420;
 }
@@ -523,6 +528,12 @@ body.visiting .topbar { background: #2f3a44; }
   padding: 12px;
 }
 .library h2 { font-size: 16px; margin: 0 0 2px; }
+.sheet-handle { display: none; }
+
+/* 寬螢幕才顯示 / 窄螢幕才顯示 */
+@media (min-width: 721px) {
+  .narrow-only { display: none !important; }
+}
 .library h2 + .pedestal-list { margin-top: 8px; }
 .pedestal-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .pedestal-option {
@@ -1014,25 +1025,43 @@ body.visiting .topbar { background: #2f3a44; }
   .topbar-actions { gap: 4px; }
   .topbar-actions button { padding: 6px 8px; font-size: 14px; }
   .layout { flex-direction: column-reverse; }
+  .wide-only { display: none !important; }
+  /* 化石庫變成底部面板，高度由 js 設定 --sheet-h（拖拉把手調整） */
   .library {
     width: 100%;
-    height: 132px;
-    overflow-x: auto;
-    overflow-y: hidden;
+    height: var(--sheet-h, 40%);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
     border-right: none;
     border-top: 1px solid #000;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    padding: 8px 12px;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.4);
+    z-index: 5;
   }
-  .library h2, .library-hint { display: none; }
-  .pedestal-list { flex-direction: row; margin: 0; flex: none; }
-  .pedestal-option { flex-direction: column; gap: 2px; font-size: 11px; padding: 4px; }
-  .dino-group { display: flex; align-items: center; gap: 8px; }
-  .library-goal { flex: none; width: 150px; margin: 0; font-size: 12px; }
-  .dino-group h3 { margin: 0; writing-mode: vertical-rl; }
-  .dino-parts { display: flex; }
-  .part-thumb { width: 92px; touch-action: pan-x; }
-  .toolbar { bottom: 144px; }
+  .sheet-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+    padding: 8px 12px 6px;
+    touch-action: none;
+    cursor: grab;
+  }
+  .sheet-grip { width: 44px; height: 5px; border-radius: 3px; background: #7d6d5f; }
+  .sheet-label { font-size: 12px; color: var(--muted); }
+  .library-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; overscroll-behavior: contain; }
+  .library h2 { font-size: 14px; margin: 6px 0 4px; }
+  .library-hint { display: none; }
+  .pedestal-list { flex-direction: row; overflow-x: auto; margin-bottom: 6px; }
+  .pedestal-option { flex: none; flex-direction: column; gap: 2px; font-size: 11px; padding: 4px; }
+  .library-goal { font-size: 12px; }
+  .dino-group h3 { margin: 10px 0 6px; }
+  .dino-parts { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+  .part-thumb { touch-action: pan-y; }
+  .toolbar { bottom: calc(var(--sheet-px, 40vh) + 10px); gap: 4px; padding: 6px; }
+  .toolbar button { min-width: 34px; height: 40px; padding: 0 4px; font-size: 14px; }
+  .toolbar .long { display: none; }
 }

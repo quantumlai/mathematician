@@ -38,6 +38,12 @@
   const hallSize = $('#hall-size');
   const hall = $('#hall');
 
+  // iPhone / iPad 的瀏覽器不理會 viewport 的 user-scalable=no，兩指縮放會把整頁放大、縮不回來。
+  // gesturestart 是 Safari 專用的縮放手勢事件，擋掉就不會整頁縮放（點兩下放大由 CSS touch-action 擋）。
+  for (const type of ['gesturestart', 'gesturechange']) {
+    document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+  }
+
   // ── 素材 ──────────────────────────────────────────
   // parts['t-rex/skull'] = { key, name, src, img, w, h, mask }
   const parts = {};
@@ -894,14 +900,17 @@
     fitHall();
   }
 
-  // 大廳的高度貼齊視窗，寬度不夠時往右延伸、可以左右捲動
+  // 大廳的高度貼齊視窗，寬度不夠時往右延伸、可以左右捲動。
+  // 手機直立時畫面很窄，改成至少放得下一整個展台，大廳貼著畫面底部，上面露出牆壁。
+  const BAY_VIEW_W = 680; // 一個展台（含化石）需要的寬度
   function fitHall() {
     const h = museum.clientHeight;
+    const vw = museum.clientWidth;
     if (!h) return;
-    hallScale = h / HALL_H;
-    const w = Math.max(hallContentW, museum.clientWidth / hallScale);
+    hallScale = Math.min(h / HALL_H, vw / BAY_VIEW_W);
+    const w = Math.max(hallContentW, vw / hallScale);
     hall.style.width = `${w}px`;
-    hall.style.transform = `scale(${hallScale})`;
+    hall.style.transform = `translateY(${h - HALL_H * hallScale}px) scale(${hallScale})`;
     hallSize.style.width = `${w * hallScale}px`;
     hallSize.style.height = `${h}px`;
   }
@@ -985,6 +994,64 @@
     museum.scrollLeft += e.deltaY;
   }, { passive: false });
 
+  // ── 手機：底部的化石庫面板 ────────────────────────
+  // 拖把手調整高度（放開時停在收起 / 一半 / 大部分），點一下在收起和一半之間切換。
+  const library = $('#library');
+  const sheetHandle = $('#sheet-handle');
+  const phoneLayout = window.matchMedia('(max-width: 720px)');
+  const SHEET_MIN = 52; // 收起時只露出把手
+  let sheetDrag = null;
+
+  function sheetRoom() {
+    return library.parentElement.clientHeight || window.innerHeight;
+  }
+
+  function setSheet(px) {
+    const h = Math.round(Math.min(Math.max(px, SHEET_MIN), sheetRoom() * 0.85));
+    library.style.setProperty('--sheet-h', `${h}px`);
+    document.documentElement.style.setProperty('--sheet-px', `${h}px`);
+    return h;
+  }
+
+  function resetSheet() {
+    if (phoneLayout.matches) setSheet(sheetRoom() * 0.4);
+  }
+
+  sheetHandle.addEventListener('pointerdown', (e) => {
+    sheetDrag = { y: e.clientY, h: library.getBoundingClientRect().height, moved: false };
+    sheetHandle.setPointerCapture(e.pointerId);
+  });
+  sheetHandle.addEventListener('pointermove', (e) => {
+    if (!sheetDrag) return;
+    const dy = e.clientY - sheetDrag.y;
+    if (Math.abs(dy) > 4) sheetDrag.moved = true;
+    if (sheetDrag.moved) setSheet(sheetDrag.h - dy);
+  });
+  sheetHandle.addEventListener('pointerup', () => {
+    if (!sheetDrag) return;
+    const room = sheetRoom();
+    const h = library.getBoundingClientRect().height;
+    if (!sheetDrag.moved) {
+      setSheet(h > SHEET_MIN + 10 ? SHEET_MIN : room * 0.4);
+    } else {
+      // 停在最接近的位置
+      const stops = [SHEET_MIN, room * 0.4, room * 0.85];
+      setSheet(stops.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a)));
+    }
+    sheetDrag = null;
+  });
+  sheetHandle.addEventListener('pointercancel', () => {
+    sheetDrag = null;
+  });
+  phoneLayout.addEventListener('change', resetSheet);
+
+  // 工作台大小改變（拖面板、轉手機方向）時，重新把工作台縮放到放得下
+  new ResizeObserver(() => {
+    if (!editing) return;
+    fitWorld();
+    renderSelection();
+  }).observe(viewport);
+
   // ── 模式切換 ──────────────────────────────────────
   // mode：login（輸入玩家代號）、museum（博物館大廳）、edit（重新組裝一個展台）
   // editing = { exhibit, isNew, pedestal }；isNew 的展台按儲存才會加進博物館
@@ -1010,6 +1077,7 @@
   function openEditor(exhibit, isNew) {
     editing = { exhibit, isNew, pedestal: exhibit.pedestal };
     setMode('edit');
+    resetSheet();
     fitWorld();
     clearAll();
     for (const p of exhibit.pieces) {
@@ -1454,6 +1522,8 @@
     else if (action === 'pin') openPinDialog();
     else if (action === 'new' && owner === player && !editing) newExhibit();
     else if (action === 'logout') logout();
+    else if (action === 'clear') $('#btn-clear').click();
+    else if (action === 'remove') $('#btn-remove').click();
   });
 
   // 這次練習有沒有挖到骨頭。舊紀錄沒有 reward 欄位，當時要答對 8 題才有
