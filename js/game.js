@@ -17,7 +17,8 @@
   const DISPLAY_MAX_W = 640;  // 化石成品最大的寬、高，超過會等比縮小
   const DISPLAY_MAX_H = 480;
 
-  const QUIZ_PASS = 8;        // 數學練習答對幾題可以得到一塊骨頭
+  const QUIZ_PASS = 6;        // 數學練習答對幾題可以得到一塊骨頭
+  const STARTER_BONES = 5;    // 第一次建立帳號送幾塊隨機骨頭
   const LAST_PLAYER_KEY = 'fossil-museum-last-player'; // 登入畫面預先填好上次的玩家代號
 
   // 搬到 LootLocker 以前存在這台電腦瀏覽器裡的資料，玩家第一次線上登入時一起搬上去（見 localImport）
@@ -1362,6 +1363,16 @@
         createdAt: imported?.createdAt || Date.now(),
       });
     }
+    // 第一次建立帳號的歡迎禮物：隨機骨頭
+    const gifts = [];
+    if (firstTime) {
+      for (let i = 0; i < STARTER_BONES; i++) {
+        const bone = pickRewardBone(p);
+        if (!bone) break;
+        p.bones.push({ ...bone, at: Date.now() });
+        gifts.push(bone);
+      }
+    }
     p.grade = grade;
     p.pin = pin;
     enforceInventory(p);
@@ -1382,8 +1393,28 @@
     }
     buildLibrary();
     showMuseum(player);
-    if (firstTime) $('#help').showModal();
+    if (gifts.length) showGifts(gifts, () => $('#help').showModal());
+    else if (firstTime) $('#help').showModal();
   });
+
+  // 歡迎禮物：列出送的骨頭，關掉後再接著做下一件事（例如打開玩法說明）
+  function showGifts(bones, then) {
+    const list = $('#gift-list');
+    list.innerHTML = '';
+    for (const bone of bones) {
+      const info = boneInfo(bone);
+      const item = elem('div', 'gift-item');
+      const img = elem('img');
+      img.src = info.src;
+      img.alt = info.name;
+      item.append(img, elem('span', '', info.name));
+      list.appendChild(item);
+    }
+    $('#gift-count').textContent = String(bones.length);
+    const dialog = $('#gift');
+    dialog.addEventListener('close', then, { once: true });
+    dialog.showModal();
+  }
 
   function logout() {
     if (editing && dirty && !confirm('還沒儲存，確定要登出嗎？這次的修改會不見喔。')) return;
@@ -1425,6 +1456,11 @@
     else if (action === 'logout') logout();
   });
 
+  // 這次練習有沒有挖到骨頭。舊紀錄沒有 reward 欄位，當時要答對 8 題才有
+  function gotBone(q) {
+    return q.reward ?? q.score >= 8;
+  }
+
   function praiseFor(questions) {
     if (!questions) return '還沒開始練習，去採集第一塊化石吧！';
     if (questions < 30) return '好的開始，繼續加油！';
@@ -1443,7 +1479,7 @@
     const quizzes = player.quizzes;
     const questions = quizzes.reduce((n, q) => n + (q.total || 0), 0);
     const correct = quizzes.reduce((n, q) => n + (q.score || 0), 0);
-    const passes = quizzes.filter((q) => q.score >= QUIZ_PASS).length;
+    const passes = quizzes.filter(gotBone).length;
 
     // 玩家角色開心的樣子（js/role.js）
     $('#report-avatar').innerHTML = characterSVG(player.role, 'happy');
@@ -1471,12 +1507,12 @@
     const last = quizzes.slice(-5).reverse();
     if (!last.length) recent.appendChild(elem('p', 'report-empty', '還沒有練習紀錄。'));
     for (const q of last) {
-      const row = elem('div', `report-row ${q.score >= QUIZ_PASS ? 'pass' : ''}`);
+      const row = elem('div', `report-row ${gotBone(q) ? 'pass' : ''}`);
       row.append(
         elem('span', 'report-row-time', formatTime(q.at)),
         elem('span', 'report-row-grade', gradeName(q.grade)),
         elem('span', 'report-row-score', `答對 ${q.score} / ${q.total}`),
-        elem('span', 'report-row-mark', q.score >= QUIZ_PASS ? '🦴' : ''),
+        elem('span', 'report-row-mark', gotBone(q) ? '🦴' : ''),
       );
       recent.appendChild(row);
     }
@@ -1587,6 +1623,14 @@
     return { part, set };
   }
 
+  // 一塊骨頭的圖片和名稱，例如「暴龍 (1) 的頭骨」
+  function boneInfo(bone) {
+    const [dinoId, partId] = bone.part.split('/');
+    const dino = window.FOSSIL_LIBRARY.find((d) => d.id === dinoId);
+    const part = dino.parts.find((x) => x.id === partId);
+    return { src: part.src, name: `${dino.name} (${bone.set}) 的${part.name}` };
+  }
+
   function startQuiz() {
     const grade = gradeOf(player?.grade);
     if (!grade) {
@@ -1599,12 +1643,14 @@
       grade,
       pass: QUIZ_PASS,
       async onFinish(score, total) {
-        player.quizzes.push({ at: Date.now(), grade: grade.id, score, total });
+        const record = { at: Date.now(), grade: grade.id, score, total, reward: false };
+        player.quizzes.push(record);
         let bone = null;
         if (score >= QUIZ_PASS) {
           bone = pickRewardBone(player);
           if (bone) player.bones.push({ ...bone, at: Date.now() });
         }
+        record.reward = !!bone;
         if (!(await savePlayer())) {
           if (bone) player.bones.pop();
           throw new Error('save failed');
@@ -1612,12 +1658,8 @@
         if (!bone) return null;
         freshBone = boneKey(bone.part, bone.set);
         buildLibrary();
-        const [dinoId, partId] = bone.part.split('/');
-        const dino = window.FOSSIL_LIBRARY.find((d) => d.id === dinoId);
-        const part = dino.parts.find((x) => x.id === partId);
         return {
-          src: part.src,
-          name: `${dino.name} (${bone.set}) 的${part.name}`,
+          ...boneInfo(bone),
           hint: fromEditor ? '已經放進左邊的化石庫了！'
             : '已經放進化石庫了！按「＋ 新展台」或「✏️ 重新組裝」就可以把它擺上去。',
         };
