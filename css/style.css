@@ -522,6 +522,18 @@ body.visiting .topbar { background: #2f3a44; }
 @keyframes glow { to { box-shadow: 0 0 12px 4px #9fd77f; } }
 .dino-progress { margin-left: 6px; font-size: 12px; color: var(--muted); font-weight: normal; }
 .library-empty { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.library-goal {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2b1d0e;
+  background: #e9c98f;
+  border-radius: 8px;
+}
+.help-example { margin: 8px 0 10px; }
+.help-example img { display: block; width: 100%; border-radius: 10px; border: 2px solid #5d4d42; }
+.help-example figcaption { font-size: 14px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
 .part-thumb img {
   flex: 1;
   min-height: 0;
@@ -970,6 +982,7 @@ body.visiting .topbar { background: #2f3a44; }
   .pedestal-list { flex-direction: row; margin: 0; flex: none; }
   .pedestal-option { flex-direction: column; gap: 2px; font-size: 11px; padding: 4px; }
   .dino-group { display: flex; align-items: center; gap: 8px; }
+  .library-goal { flex: none; width: 150px; margin: 0; font-size: 12px; }
   .dino-group h3 { margin: 0; writing-mode: vertical-rl; }
   .dino-parts { display: flex; }
   .part-thumb { width: 92px; touch-action: pan-x; }

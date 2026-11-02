@@ -559,12 +559,18 @@
     }
   }
 
+  // 化石庫只列出已經有骨頭的恐龍；最上面提示一共有幾種恐龍可以搜集
   function buildLibrary() {
     const list = $('#library-list');
     list.innerHTML = '';
     thumbs.clear();
     const owned = ownedBones();
-    for (const dino of window.FOSSIL_LIBRARY || []) {
+    const allDinos = (window.FOSSIL_LIBRARY || []).filter((d) => d.parts.some((part) => parts[`${d.id}/${part.id}`]));
+    const found = allDinos.filter((d) => (player?.bones || []).some((b) => b.part.startsWith(`${d.id}/`))).length;
+    list.appendChild(elem('p', 'library-goal', found === allDinos.length
+      ? `🦕 ${allDinos.length} 種恐龍你都找到了，好厲害！`
+      : `🦕 一共有 ${allDinos.length} 種恐龍等你去搜集，你已經找到 ${found} 種！`));
+    for (const dino of allDinos) {
       const sets = [...new Set((player?.bones || [])
         .filter((b) => b.part.startsWith(`${dino.id}/`))
         .map((b) => b.set))].sort((a, b) => a - b);
@@ -595,7 +601,7 @@
         list.appendChild(group);
       }
     }
-    if (!list.children.length) {
+    if (!found) {
       list.appendChild(elem('p', 'library-empty', '還沒有化石，按上方「⛏️ 採集新化石」去挖挖看！'));
     }
     refreshLibrary();
@@ -1420,35 +1426,18 @@
   }
 
   // ── 採集新化石（數學練習）─────────────────────────
-  // 獎勵哪一塊骨頭：先補齊已經有的恐龍還缺的骨頭（組別小的先補），
-  // 都齊了就開始收集已經有的恐龍的下一組；完全沒有化石時隨機挑一種恐龍。
+  // 獎勵哪一塊骨頭：從所有恐龍的所有骨頭裡隨機挑一塊（不管有沒有這種恐龍）。
+  // 組別是這塊骨頭還沒擁有的最小號碼，例如已經有暴龍 (1) 的頭骨，再抽到暴龍頭骨就是暴龍 (2) 的。
   function pickRewardBone(p) {
     const owned = new Set(p.bones.map((b) => boneKey(b.part, b.set)));
     const dinos = (window.FOSSIL_LIBRARY || []).filter((d) => d.parts.every((part) => parts[`${d.id}/${part.id}`]));
     if (!dinos.length) return null;
     const randomOf = (list) => list[Math.floor(Math.random() * list.length)];
-    const setsOf = (dino) => p.bones.filter((b) => b.part.startsWith(`${dino.id}/`)).map((b) => b.set);
-    const ownedDinos = dinos.filter((d) => setsOf(d).length);
-
-    const incomplete = [];
-    for (const dino of ownedDinos) {
-      const maxSet = Math.max(...setsOf(dino));
-      for (let set = 1; set <= maxSet; set++) {
-        const missing = dino.parts.filter((part) => !owned.has(boneKey(`${dino.id}/${part.id}`, set)));
-        if (missing.length) incomplete.push({ dino, set, missing });
-      }
-    }
-    if (incomplete.length) {
-      const lowest = Math.min(...incomplete.map((x) => x.set));
-      const { dino, set, missing } = randomOf(incomplete.filter((x) => x.set === lowest));
-      return { part: `${dino.id}/${randomOf(missing).id}`, set };
-    }
-    // 已經有的恐龍都收齊了：組數最少的那種開始下一組
-    const pool = ownedDinos.length ? ownedDinos : dinos;
-    const fewest = Math.min(...pool.map((d) => new Set(setsOf(d)).size));
-    const dino = randomOf(pool.filter((d) => new Set(setsOf(d)).size === fewest));
-    const set = Math.max(0, ...setsOf(dino)) + 1;
-    return { part: `${dino.id}/${randomOf(dino.parts).id}`, set };
+    const dino = randomOf(dinos);
+    const part = `${dino.id}/${randomOf(dino.parts).id}`;
+    let set = 1;
+    while (owned.has(boneKey(part, set))) set++;
+    return { part, set };
   }
 
   function startQuiz() {
