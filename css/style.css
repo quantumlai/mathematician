@@ -71,6 +71,38 @@ body:not(.visiting) .visit-only { display: none !important; }
   overflow: hidden;
 }
 .player-chip { font-size: 13px; font-weight: normal; color: var(--muted); }
+.menu-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: bold;
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  margin-left: -8px;
+}
+.menu-button:hover, .menu-button[aria-expanded="true"] { background: var(--panel-2); }
+.menu-icon { font-size: 22px; line-height: 1; }
+#museum-title { overflow: hidden; text-overflow: ellipsis; }
+body.mode-login .menu-button,
+body:not(.mode-login) .login-title { display: none; }
+.menu {
+  position: fixed;
+  left: 12px;
+  top: 50px;
+  z-index: 150;
+  min-width: 200px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid #000;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+.menu[hidden] { display: none; }
+.menu button { display: block; width: 100%; text-align: left; font-size: 17px; padding: 10px 12px; background: none; border: none; }
+.menu button:hover { background: var(--panel-2); }
 .player-chip:empty { display: none; }
 .topbar-actions { display: flex; gap: 8px; flex: none; }
 body.visiting .topbar { background: #2f3a44; }
@@ -694,7 +726,98 @@ body.visiting .topbar { background: #2f3a44; }
 .quiz-feedback { min-height: 1.6em; font-size: 20px; margin-bottom: 12px; }
 .quiz-feedback.right { color: #3f7a26; font-weight: bold; }
 .quiz-feedback.wrong { color: #a63d36; }
-.quiz-actions { display: flex; gap: 10px; justify-content: center; }
+.quiz-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.quiz-actions .quiz-scratch { background: #fffaf0; color: #3b2b1d; border: 2px solid #8b6b45; }
+.quiz-actions .quiz-scratch:hover { background: #fff3da; }
+
+/* 回顧 */
+.quiz-review { margin-top: 22px; text-align: left; }
+.quiz-review-title { font-size: 18px; margin: 0 0 8px; color: #5a4334; }
+.review-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgba(255, 250, 240, 0.7);
+  border-left: 6px solid #6a9c4e;
+}
+.review-item.wrong { border-left-color: #c0564f; background: rgba(251, 234, 234, 0.8); }
+.review-mark { font-size: 24px; font-weight: bold; width: 24px; text-align: center; color: #3f7a26; }
+.review-item.wrong .review-mark { color: #a63d36; }
+.review-main { flex: 1; min-width: 0; }
+.review-q { font-size: 16px; line-height: 1.6; }
+.review-a { font-size: 15px; color: #5a4334; margin-top: 2px; }
+.review-solution { color: #3f7a26; }
+.review-item.wrong .review-given { color: #a63d36; }
+.review-scratch {
+  flex: none;
+  font-size: 15px;
+  padding: 8px 12px;
+  background: #fffaf0;
+  color: #3b2b1d;
+  border: 2px solid #8b6b45;
+}
+.review-scratch:hover { background: #fff3da; }
+
+/* ── 計算紙 ───────────────────────── */
+.scratch {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: #2b2420;
+}
+.scratch[hidden] { display: none; }
+.scratch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 8px 12px;
+}
+.scratch-question { font-size: 20px; line-height: 1.5; color: var(--text); flex: 1 1 320px; }
+.scratch-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.scratch-tools button { font-size: 17px; padding: 8px 14px; }
+.scratch-tools button.active { background: #f6ecdc; color: #2b1d0e; border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.scratch-paper {
+  position: relative;
+  flex: 1;
+  margin: 0 12px 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #fffdf6;
+  background-image:
+    linear-gradient(rgba(80, 140, 200, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 140, 200, 0.18) 1px, transparent 1px);
+  background-size: 32px 32px;
+  cursor: crosshair;
+}
+.scratch-paper.erasing { cursor: cell; }
+#scratch-canvas { position: absolute; left: 0; top: 0; touch-action: none; }
+
+/* ── 成績單 ───────────────────────── */
+.report { max-width: min(520px, calc(100vw - 32px)); }
+.report-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.report-avatar { width: 136px; flex: none; }
+.report-avatar svg { display: block; width: 100%; height: auto; }
+.report-name { font-size: 14px; color: var(--muted); }
+.report-headline { font-size: 24px; font-weight: bold; margin: 4px 0; }
+.report-praise { font-size: 22px; font-weight: bold; color: var(--accent); }
+.report-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.report-stat { background: var(--panel-2); border-radius: 10px; padding: 10px 6px; text-align: center; }
+.report-stat-value { font-size: 20px; font-weight: bold; }
+.report-stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.report-recent { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.report-row { display: flex; gap: 12px; align-items: center; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); font-size: 15px; }
+.report-row-time { color: var(--muted); width: 84px; }
+.report-row-grade { color: var(--muted); }
+.report-row-score { flex: 1; text-align: right; font-weight: bold; }
+.report-row-mark { width: 22px; text-align: center; }
+.report-empty { color: var(--muted); }
 .quiz-actions button { font-size: 20px; padding: 10px 28px; }
 .quiz-actions button:not(.primary) { background: #8b6b45; border-color: #6b4f33; }
 .quiz-score { font-size: 34px; font-weight: bold; margin: 6px 0 10px; }
@@ -732,7 +855,12 @@ body.visiting .topbar { background: #2f3a44; }
   .topbar { padding: 0 10px; }
   .topbar h1 { font-size: 16px; }
   .player-chip, .topbar .long { display: none; }
-  .mode-edit .topbar h1, .mode-museum .topbar h1 { display: none; }
+  .mode-edit #museum-title, .mode-museum #museum-title { display: none; }
+  .topbar h1 { flex: none; }
+  .report-avatar { width: 96px; }
+  .report-headline { font-size: 20px; }
+  .review-item { flex-wrap: wrap; }
+  .review-scratch { margin-left: 34px; }
   .topbar-actions { overflow-x: auto; flex: 0 1 auto; margin: 0 auto; }
   .topbar-actions button { white-space: nowrap; }
   .quiz { padding: 8px; }

@@ -8,7 +8,16 @@
 </head>
 <body class="mode-login">
   <header class="topbar">
-    <h1><span id="museum-title">🦴 恐龍博物館</span><span id="player-chip" class="player-chip"></span></h1>
+    <h1>
+      <button id="menu-button" type="button" class="menu-button" aria-haspopup="menu" aria-expanded="false">
+        <span class="menu-icon" aria-hidden="true">☰</span><span id="museum-title">恐龍博物館</span>
+      </button>
+      <span class="login-title">🦴 恐龍博物館</span>
+      <span id="player-chip" class="player-chip"></span>
+    </h1>
+    <div id="menu" class="menu" role="menu" hidden>
+      <button type="button" role="menuitem" data-menu="report">📊 我的成績單</button>
+    </div>
     <!-- 自己的博物館 -->
     <div class="topbar-actions museum-only own-only">
       <button id="btn-quiz" type="button" class="dig">⛏️ 採集新化石<span class="long">（數學）</span></button>
@@ -118,6 +127,35 @@
     </div>
   </section>
 
+  <!-- 計算紙（蓋在數學練習上面） -->
+  <section id="scratch" class="scratch" hidden aria-label="計算紙">
+    <div class="scratch-head">
+      <div id="scratch-question" class="scratch-question"></div>
+      <div class="scratch-tools">
+        <button type="button" data-tool="pen" class="active">🖊️ 原子筆</button>
+        <button type="button" data-tool="eraser">🧽 橡皮擦</button>
+        <button type="button" id="scratch-clear">🗑️ 清除</button>
+        <button type="button" id="scratch-close" class="primary">收起計算紙</button>
+      </div>
+    </div>
+    <div id="scratch-paper" class="scratch-paper"><canvas id="scratch-canvas"></canvas></div>
+  </section>
+
+  <dialog id="report" class="help report">
+    <div class="report-hero">
+      <div id="report-avatar" class="report-avatar"></div>
+      <div>
+        <div id="report-name" class="report-name"></div>
+        <div id="report-headline" class="report-headline"></div>
+        <div id="report-praise" class="report-praise"></div>
+      </div>
+    </div>
+    <div id="report-stats" class="report-stats"></div>
+    <h3>最近的練習</h3>
+    <div id="report-recent" class="report-recent"></div>
+    <form method="dialog"><button>關閉</button></form>
+  </dialog>
+
   <dialog id="visit" class="help visit">
     <h2>🏛️ 參觀其他博物館</h2>
     <p>可以參觀，但不能改動別人的展品喔！</p>
@@ -131,6 +169,8 @@
     <ul>
       <li>按<b>⛏️ 採集新化石（數學）</b>，完成 10 題數學練習</li>
       <li>答對 8 題以上，就能挖到一塊新的恐龍骨頭！會先補齊你已經有的恐龍還缺的骨頭</li>
+      <li>算不出來？按<b>📝 計算紙</b>用筆算算看。做完後可以回顧每一題，再打開計算紙檢查</li>
+      <li>點左上角的<b>☰</b>，可以看<b>我的成績單</b></li>
     </ul>
     <h3>逛博物館</h3>
     <ul>
@@ -150,11 +190,13 @@
     <form method="dialog"><button>知道了！</button></form>
   </dialog>
 
+  <script src="js/role.js"></script>
   <script src="js/fossils.js"></script>
   <script src="js/pedestals.js"></script>
   <script src="js/showcase.js"></script>
   <script src="js/math/grade3a.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/scratchpad.js"></script>
   <script src="js/quiz.js"></script>
   <script src="js/game.js"></script>
 </body>

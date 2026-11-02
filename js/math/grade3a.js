@@ -3,6 +3,7 @@
 // 新增年級：複製這個檔案改內容，在 index.html 加一行 <script>，登入畫面就會出現新的年級選項。
 //   id     ：英文代號（存在玩家資料裡，加入後不要改）
 //   name   ：顯示名稱
+//   short  ：簡短名稱，顯示在左上角的博物館名稱後面
 //   topics ：出題函式，回傳 {
 //     unit     ：單元名稱
 //     text     ：題目。[[3/8]] 會顯示成分數（8 分之 3）
@@ -222,5 +223,5 @@
   ];
 
   window.MATH_GRADES = window.MATH_GRADES || [];
-  window.MATH_GRADES.push({ id: 'g3a', name: '小三(上)', topics });
+  window.MATH_GRADES.push({ id: 'g3a', name: '小三(上)', short: '小三', topics });
 })();

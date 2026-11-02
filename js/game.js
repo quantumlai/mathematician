@@ -508,7 +508,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.target.isContentEditable || e.target.closest?.('dialog, input, #quiz')) return;
-    if (window.MathQuiz.isOpen() || document.body.classList.contains('mode-login')) return;
+    if (window.MathQuiz.isOpen() || window.ScratchPad.isOpen() || document.body.classList.contains('mode-login')) return;
     if (!editing) {
       const dir = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
       if (dir) {
@@ -979,10 +979,12 @@
     for (const m of ['login', 'museum', 'edit']) document.body.classList.toggle(`mode-${m}`, m === mode);
     document.body.classList.toggle('visiting', mode === 'museum' && readonly());
     const title = owner ? museumName(owner) : '恐龍博物館';
-    $('#museum-title').textContent = `🦴 ${title}`;
+    // 左上角：寬爸的恐龍博物館（小三）；入口的大招牌不加年級
+    const short = owner && gradeOf(owner.grade)?.short;
+    $('#museum-title').textContent = short ? `${title}（${short}）` : title;
     document.title = title;
-    $('#player-chip').textContent = player && mode !== 'login'
-      ? (readonly() ? `參觀中・${player.name}` : `${player.name}・${gradeName(player.grade)}`) : '';
+    $('#player-chip').textContent = mode === 'museum' && readonly() ? `參觀中・${player.name}` : '';
+    closeMenu();
   }
 
   function openEditor(exhibit, isNew) {
@@ -1226,6 +1228,88 @@
       clearAll();
     }
     showLogin();
+  }
+
+  // ── 選單與成績單 ──────────────────────────────────
+  const menu = $('#menu');
+  const menuButton = $('#menu-button');
+
+  function closeMenu() {
+    menu.hidden = true;
+    menuButton.setAttribute('aria-expanded', 'false');
+  }
+
+  menuButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+    menuButton.setAttribute('aria-expanded', String(!menu.hidden));
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.hidden && !menu.contains(e.target)) closeMenu();
+  });
+  menu.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-menu]');
+    if (!item) return;
+    closeMenu();
+    if (item.dataset.menu === 'report') openReport();
+  });
+
+  function praiseFor(questions) {
+    if (!questions) return '還沒開始練習，去採集第一塊化石吧！';
+    if (questions < 30) return '好的開始，繼續加油！';
+    if (questions < 100) return '你好棒！';
+    if (questions < 300) return '你超厲害，是數學小達人！';
+    return '你是傳說中的數學古生物學家！';
+  }
+
+  function formatTime(at) {
+    const d = new Date(at);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function openReport() {
+    const quizzes = player.quizzes;
+    const questions = quizzes.reduce((n, q) => n + (q.total || 0), 0);
+    const correct = quizzes.reduce((n, q) => n + (q.score || 0), 0);
+    const passes = quizzes.filter((q) => q.score >= QUIZ_PASS).length;
+
+    // 開心的小小古生物學家（js/role.js）
+    $('#report-avatar').innerHTML = typeof window.boySVG === 'function' ? window.boySVG('happy') : '';
+    $('#report-name').textContent = `${player.name}的成績單・${gradeName(player.grade)}`;
+    $('#report-headline').textContent = `你已經完成 ${questions} 題數學！`;
+    $('#report-praise').textContent = praiseFor(questions);
+
+    const stats = $('#report-stats');
+    stats.innerHTML = '';
+    for (const [label, value] of [
+      ['練習次數', `${quizzes.length} 次`],
+      ['答對', `${correct} 題`],
+      ['答對率', questions ? `${Math.round((correct / questions) * 100)}%` : '—'],
+      ['挖到化石', `${passes} 次`],
+      ['收藏骨頭', `${player.bones.length} 塊`],
+      ['最高分', quizzes.length ? `${Math.max(...quizzes.map((q) => q.score))} / 10` : '—'],
+    ]) {
+      const box = elem('div', 'report-stat');
+      box.append(elem('div', 'report-stat-value', value), elem('div', 'report-stat-label', label));
+      stats.appendChild(box);
+    }
+
+    const recent = $('#report-recent');
+    recent.innerHTML = '';
+    const last = quizzes.slice(-5).reverse();
+    if (!last.length) recent.appendChild(elem('p', 'report-empty', '還沒有練習紀錄。'));
+    for (const q of last) {
+      const row = elem('div', `report-row ${q.score >= QUIZ_PASS ? 'pass' : ''}`);
+      row.append(
+        elem('span', 'report-row-time', formatTime(q.at)),
+        elem('span', 'report-row-grade', gradeName(q.grade)),
+        elem('span', 'report-row-score', `答對 ${q.score} / ${q.total}`),
+        elem('span', 'report-row-mark', q.score >= QUIZ_PASS ? '🦴' : ''),
+      );
+      recent.appendChild(row);
+    }
+    $('#report').showModal();
   }
 
   // ── 參觀其他博物館 ────────────────────────────────

@@ -1,4 +1,5 @@
-// 數學練習畫面：一次 10 題，每答一題馬上知道對錯，最後算分數。
+// 數學練習畫面：一次 10 題，每答一題馬上知道對錯，最後可以回顧每一題。
+// 每題都有一張計算紙（js/scratchpad.js），做完後回顧時還能打開檢查；離開練習就不留了。
 //   MathQuiz.start({
 //     grade,               ：MATH_GRADES 裡的一筆
 //     pass,                ：答對幾題算過關
@@ -17,6 +18,8 @@ window.MathQuiz = (() => {
   let opts = null;
   let questions = [];
   let results = []; // true / false
+  let answers = []; // 孩子填的答案（顯示用的文字）
+  let sheets = [];  // 每題計算紙的筆畫
   let index = 0;
   let answered = false;
   let finished = false;
@@ -84,6 +87,31 @@ window.MathQuiz = (() => {
     return input;
   }
 
+  function hasWriting(i) {
+    return sheets[i].some((s) => s.tool === 'pen');
+  }
+
+  function scratchLabel(i) {
+    return hasWriting(i) ? '📝 計算紙 ✏️' : '📝 計算紙';
+  }
+
+  function openScratch(i, onClose) {
+    window.ScratchPad.open({
+      fillQuestion(node) {
+        node.append(elem('b', '', `第 ${i + 1} 題　`));
+        richText(node, questions[i].text);
+      },
+      strokes: sheets[i],
+      onClose,
+    });
+  }
+
+  // 孩子填的答案，排成和正確答案一樣的樣子
+  function givenText(q, values) {
+    if (q.layout === 'fraction') return `[[${values[0]}/${values[1]}]]`;
+    return q.inputs.map((spec, i) => [spec.prefix, values[i], spec.suffix].filter(Boolean).join(' ')).join('　');
+  }
+
   function renderQuestion() {
     const q = questions[index];
     answered = false;
@@ -129,9 +157,18 @@ window.MathQuiz = (() => {
     body.appendChild(feedback);
 
     const actions = elem('div', 'quiz-actions');
+    const scratchBtn = elem('button', 'quiz-scratch', scratchLabel(index));
+    scratchBtn.type = 'button';
+    const qIndex = index;
+    scratchBtn.addEventListener('click', () => {
+      openScratch(qIndex, () => {
+        scratchBtn.textContent = scratchLabel(qIndex);
+        (answered ? btn : fields.find((f) => !f.value) || btn).focus();
+      });
+    });
     const btn = elem('button', 'primary quiz-submit', '確定');
     btn.type = 'button';
-    actions.appendChild(btn);
+    actions.append(scratchBtn, btn);
     body.appendChild(actions);
 
     const submit = () => {
@@ -147,6 +184,7 @@ window.MathQuiz = (() => {
           return;
         }
         correct = picked.textContent === q.answer;
+        answers[index] = picked.textContent;
       } else {
         const values = fields.map((f) => f.value.normalize('NFKC').trim());
         const empty = fields.find((f, i) => !/^\d+$/.test(values[i]));
@@ -155,7 +193,14 @@ window.MathQuiz = (() => {
           empty.focus();
           return;
         }
-        correct = q.inputs.every((spec, i) => Number(values[i]) === spec.answer);
+        if (q.layout === 'fraction') {
+          // 等值分數也算對，例如 8 分之 4 寫成 2 分之 1
+          const [n, d] = values.map(Number);
+          correct = d > 0 && n * q.inputs[1].answer === q.inputs[0].answer * d;
+        } else {
+          correct = q.inputs.every((spec, i) => Number(values[i]) === spec.answer);
+        }
+        answers[index] = givenText(q, values.map(Number));
         fields.forEach((f) => { f.readOnly = true; });
       }
       answered = true;
@@ -235,12 +280,46 @@ window.MathQuiz = (() => {
     back.addEventListener('click', close);
     actions.append(again, back);
     body.appendChild(actions);
+    body.appendChild(renderReview());
     body.onkeydown = null;
     (reward ? back : again).focus();
   }
 
+  // 回顧剛剛的 10 題：題目、自己的答案、正確答案，還可以打開那一題的計算紙
+  function renderReview() {
+    const box = elem('div', 'quiz-review');
+    box.appendChild(elem('h3', 'quiz-review-title', '看看剛剛的題目'));
+    questions.forEach((q, i) => {
+      const ok = results[i];
+      const item = elem('div', `review-item ${ok ? 'right' : 'wrong'}`);
+      item.appendChild(elem('div', 'review-mark', ok ? '✓' : '✗'));
+      const main = elem('div', 'review-main');
+      const text = elem('div', 'review-q');
+      text.append(elem('b', '', `${i + 1}. `));
+      richText(text, q.text);
+      const ans = elem('div', 'review-a');
+      ans.append('你的答案：');
+      richText(ans.appendChild(elem('b', 'review-given')), answers[i] ?? '—');
+      if (!ok) {
+        ans.append('　正確答案：');
+        richText(ans.appendChild(elem('b', 'review-solution')), q.solution);
+      }
+      main.append(text, ans);
+      const btn = elem('button', 'review-scratch', hasWriting(i) ? '📝 看計算紙' : '📝 計算紙');
+      btn.type = 'button';
+      btn.addEventListener('click', () => openScratch(i, () => {
+        btn.textContent = hasWriting(i) ? '📝 看計算紙' : '📝 計算紙';
+      }));
+      item.append(main, btn);
+      box.appendChild(item);
+    });
+    return box;
+  }
+
   function begin() {
     questions = makeQuestions(opts.grade);
+    sheets = questions.map(() => []);
+    answers = [];
     results = [];
     index = 0;
     finished = false;
@@ -249,12 +328,14 @@ window.MathQuiz = (() => {
 
   function close() {
     screen.hidden = true;
+    sheets = []; // 離開練習，計算紙就不留了
     opts?.onClose?.();
     opts = null;
   }
 
   $('#quiz-close').addEventListener('click', () => {
-    if (!finished && results.length && !confirm('練習還沒做完，確定要離開嗎？')) return;
+    if (!finished && (results.length || sheets.some((s) => s.length))
+      && !confirm('練習還沒做完，確定要離開嗎？')) return;
     close();
   });
 
