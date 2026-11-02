@@ -20,9 +20,11 @@
   const QUIZ_PASS = 8;        // 數學練習答對幾題可以得到一塊骨頭
   const LAST_PLAYER_KEY = 'fossil-museum-last-player'; // 登入畫面預先填好上次的玩家代號
 
-  // 還沒有玩家代號時的舊版存檔，會交給第一個建立的玩家，連同當時擁有的素材
-  const LEGACY_KEYS = ['fossil-museum-v3', 'fossil-museum-v2'];
+  // 搬到 LootLocker 以前存在這台電腦瀏覽器裡的資料，玩家第一次線上登入時一起搬上去（見 localImport）
+  const LOCAL_PLAYERS_KEY = 'fossil-museum-players-v1';
+  const LEGACY_KEYS = ['fossil-museum-v3', 'fossil-museum-v2']; // 還沒有玩家代號時的存檔
   const LEGACY_SETS = { 't-rex': 2 };
+  const LEGACY_UPLOADED_KEY = 'fossil-museum-legacy-uploaded';
 
   const $ = (sel) => document.querySelector(sel);
   const viewport = $('#viewport');
@@ -1064,7 +1066,7 @@
       return true;
     } catch (err) {
       console.error(err);
-      alert('存檔失敗了！可能是瀏覽器的無痕模式，或儲存空間不夠。');
+      alert(`存檔失敗了（${err.message}）。請檢查網路後再試一次。`);
       return false;
     }
   }
@@ -1097,8 +1099,27 @@
     }
   }
 
-  // 有玩家代號以前的存檔：展台和當時擁有的素材（暴龍 2 組）交給第一個建立的玩家
-  function legacyMuseum() {
+  // 這台電腦瀏覽器裡的舊資料：同一個代號的玩家；或是還沒有玩家代號時的存檔（展台和暴龍 2 組，只給一個人）
+  function localImport(name) {
+    const local = readJSON(LOCAL_PLAYERS_KEY);
+    const old = local?.players?.[window.PlayerStore.idOf(name)];
+    if (old) {
+      return {
+        grade: old.grade,
+        role: old.role,
+        bones: old.bones,
+        exhibits: cleanExhibits(old.exhibits),
+        quizzes: old.quizzes,
+        createdAt: old.createdAt,
+      };
+    }
+    let uploaded = false;
+    try {
+      uploaded = !!localStorage.getItem(LEGACY_UPLOADED_KEY);
+    } catch (err) {
+      uploaded = true;
+    }
+    if (local || uploaded) return null;
     const v3 = readJSON(LEGACY_KEYS[0]);
     const v2 = readJSON(LEGACY_KEYS[1]);
     let list = null;
@@ -1108,10 +1129,10 @@
     const bones = [];
     for (const dino of window.FOSSIL_LIBRARY || []) {
       for (let set = 1; set <= (LEGACY_SETS[dino.id] || 0); set++) {
-        for (const part of dino.parts) bones.push({ part: `${dino.id}/${part.id}`, set, at: Date.now() });
+        for (const part of dino.parts) bones.push({ part: `${dino.id}/${part.id}`, set });
       }
     }
-    return { exhibits: cleanExhibits(list), bones };
+    return { legacy: true, exhibits: cleanExhibits(list), bones };
   }
 
   // ── 年級 ──────────────────────────────────────────
@@ -1168,7 +1189,15 @@
   const confirmForm = $('#login-confirm');
   const nameInput = $('#player-name');
   const loginError = $('#login-error');
-  let pending = null; // { name, existing, role }：輸入代號後、按下進入前
+  const pinInput = $('#pin-input');
+  const pinInput2 = $('#pin-input2');
+  const confirmError = $('#confirm-error');
+  // 輸入代號後、按下進入前：{ name, existing, role, imported, newPin }
+  // newPin：要設定新密碼（新玩家，或還沒有密碼的玩家）
+  let pending = null;
+
+  const isPin = (v) => /^\d{4}$/.test(v.normalize('NFKC'));
+  const pinOf = (input) => input.value.normalize('NFKC');
 
   function showLoginStep(step) {
     nameForm.hidden = step !== 'name';
@@ -1180,6 +1209,7 @@
     owner = null;
     exhibits = [];
     pending = null;
+    window.PlayerStore.close();
     setMode('login');
     renderShowcase();
     showLoginStep('name');
@@ -1213,9 +1243,25 @@
     return confirmForm.querySelector('input[name="grade"]:checked')?.value || null;
   }
 
-  // 新玩家要選年級和角色；舊玩家只確認年級（角色在選單裡換）
+  // 新玩家要設密碼、選年級和角色；舊玩家輸入密碼、確認年級（角色在選單裡換）
   function updateEnterButton() {
-    $('#btn-enter').disabled = !chosenGrade() || (pending && !pending.existing && !pending.role);
+    const pinOk = isPin(pinInput.value) && (!pending?.newPin || isPin(pinInput2.value));
+    $('#btn-enter').disabled = !pinOk || !chosenGrade() || (pending && !pending.existing && !pending.role);
+  }
+  pinInput.addEventListener('input', updateEnterButton);
+  pinInput2.addEventListener('input', updateEnterButton);
+
+  // 連線時按鈕先不能按，顯示「連線中…」
+  async function busy(button, task) {
+    const label = [...button.childNodes];
+    button.disabled = true;
+    button.textContent = '連線中…';
+    try {
+      return await task();
+    } finally {
+      button.replaceChildren(...label);
+      button.disabled = false;
+    }
   }
 
   nameForm.addEventListener('submit', async (e) => {
@@ -1227,9 +1273,27 @@
       return;
     }
     loginError.textContent = '';
-    const existing = await window.PlayerStore.get(name);
-    pending = { name: existing?.name || name, existing };
+    let existing;
+    try {
+      existing = await busy(nameForm.querySelector('button[type="submit"]'), () => window.PlayerStore.open(name));
+    } catch (err) {
+      loginError.textContent = `${err.message}，請再試一次。`;
+      return;
+    }
+    const imported = existing ? null : localImport(name);
+    pending = {
+      name: existing?.name || name,
+      existing,
+      role: imported?.role || null,
+      imported,
+      newPin: !existing?.pin,
+    };
     $('#login-who').textContent = pending.name;
+    pinInput.value = '';
+    pinInput2.value = '';
+    pinInput2.hidden = !pending.newPin;
+    confirmError.textContent = '';
+    $('#pin-label').textContent = pending.newPin ? '請設定 4 位數密碼（只能用數字）' : '請輸入你的 4 位數密碼';
     if (existing) {
       $('#login-greet').textContent = `歡迎回來，${existing.name}！`;
       $('#grade-label').textContent = '你的年級（升級了可以在這裡改）';
@@ -1237,18 +1301,20 @@
       $('#role-section').hidden = true;
       renderGradeChoices(gradeOf(existing.grade) ? existing.grade : null);
     } else {
-      $('#login-greet').textContent = '第一次來，歡迎你！';
+      $('#login-greet').textContent = imported
+        ? '這台電腦裡有你之前的博物館！設定密碼後會一起搬到網路上。'
+        : '第一次來，歡迎你！';
       $('#grade-label').textContent = '請選擇你的年級';
       $('#btn-enter').textContent = '建立我的博物館';
       $('#role-section').hidden = false;
-      renderRoleChoices($('#role-list'), null, (id) => {
+      renderRoleChoices($('#role-list'), pending.role, (id) => {
         pending.role = id;
         updateEnterButton();
       });
-      renderGradeChoices(null);
+      renderGradeChoices(gradeOf(imported?.grade) ? imported.grade : null);
     }
     showLoginStep('confirm');
-    $('#btn-enter').focus();
+    pinInput.focus();
   });
 
   $('#btn-back').addEventListener('click', () => {
@@ -1262,27 +1328,51 @@
     e.preventDefault();
     const grade = chosenGrade();
     if (!pending || !grade || (!pending.existing && !pending.role)) return;
+    const pin = pinOf(pinInput);
+    if (pending.newPin) {
+      if (pin !== pinOf(pinInput2)) {
+        confirmError.textContent = '兩次輸入的密碼不一樣，再輸入一次吧！';
+        pinInput2.value = '';
+        pinInput2.focus();
+        updateEnterButton();
+        return;
+      }
+    } else if (pin !== pending.existing.pin) {
+      confirmError.textContent = '密碼不對喔！忘記密碼的話，請找大人幫忙。';
+      pinInput.value = '';
+      pinInput.focus();
+      updateEnterButton();
+      return;
+    }
+    confirmError.textContent = '';
     const firstTime = !pending.existing;
+    const imported = pending.imported;
     let p;
     if (pending.existing) {
       p = cleanPlayer(pending.existing);
     } else {
-      const legacy = (await window.PlayerStore.isEmpty()) ? legacyMuseum() : null;
-      p = {
+      p = cleanPlayer({
         id: window.PlayerStore.idOf(pending.name),
         name: pending.name,
-        grade,
         role: pending.role,
-        bones: legacy?.bones || [],
-        exhibits: legacy?.exhibits || [],
-        quizzes: [],
-        createdAt: Date.now(),
-      };
+        bones: imported?.bones || [],
+        exhibits: imported?.exhibits || [],
+        quizzes: imported?.quizzes || [],
+        createdAt: imported?.createdAt || Date.now(),
+      });
     }
     p.grade = grade;
+    p.pin = pin;
     enforceInventory(p);
     player = p;
-    if (!(await savePlayer())) return;
+    if (!(await busy($('#btn-enter'), savePlayer))) return;
+    if (imported?.legacy) {
+      try {
+        localStorage.setItem(LEGACY_UPLOADED_KEY, p.id);
+      } catch (err) {
+        // 記不住也沒關係
+      }
+    }
     try {
       localStorage.setItem(LAST_PLAYER_KEY, p.name);
     } catch (err) {
@@ -1328,6 +1418,7 @@
     const action = item.dataset.menu;
     if (action === 'report') openReport();
     else if (action === 'role') openRoleDialog();
+    else if (action === 'pin') openPinDialog();
     else if (action === 'new' && owner === player && !editing) newExhibit();
     else if (action === 'logout') logout();
   });
@@ -1394,9 +1485,19 @@
   async function openVisitList() {
     const list = $('#visit-list');
     list.innerHTML = '';
-    const others = (await window.PlayerStore.list())
-      .filter((p) => p.id !== player.id)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    list.appendChild(elem('p', 'visit-empty', '正在找其他博物館…'));
+    $('#visit').showModal();
+    let others;
+    try {
+      others = (await window.PlayerStore.list())
+        .filter((p) => p.key !== window.PlayerStore.currentKey())
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    } catch (err) {
+      list.innerHTML = '';
+      list.appendChild(elem('p', 'visit-empty', `${err.message}，請稍後再試。`));
+      return;
+    }
+    list.innerHTML = '';
     if (!others.length) list.appendChild(elem('p', 'visit-empty', '還沒有其他玩家的博物館。'));
     for (const info of others) {
       const btn = elem('button', 'visit-item');
@@ -1406,9 +1507,16 @@
         elem('span', 'visit-meta', `${gradeName(info.grade)}・${info.exhibitCount} 件展品`),
       );
       btn.addEventListener('click', async () => {
-        const other = await window.PlayerStore.get(info.name);
+        let other = null;
+        try {
+          other = await busy(btn, () => window.PlayerStore.getPublic(info.key));
+        } catch (err) {
+          alert(`${err.message}，請稍後再試。`);
+          return;
+        }
         $('#visit').close();
         if (other) showMuseum(cleanPlayer(other));
+        else alert('這個博物館暫時打不開。');
       });
       list.appendChild(btn);
     }
@@ -1422,8 +1530,45 @@
       });
       list.prepend(home);
     }
-    $('#visit').showModal();
   }
+
+  // ── 修改密碼 ──────────────────────────────────────
+  const pinForm = $('#pin-form');
+
+  function openPinDialog() {
+    pinForm.reset();
+    $('#pin-error').textContent = '';
+    $('#pin-dialog').showModal();
+    $('#pin-old').focus();
+  }
+
+  $('#pin-cancel').addEventListener('click', () => $('#pin-dialog').close());
+
+  pinForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const error = $('#pin-error');
+    const [oldPin, newPin, newPin2] = ['#pin-old', '#pin-new', '#pin-new2'].map((sel) => pinOf($(sel)));
+    if (oldPin !== player.pin) {
+      error.textContent = '原本的密碼不對喔！';
+      return;
+    }
+    if (!isPin(newPin)) {
+      error.textContent = '新密碼要是 4 個數字。';
+      return;
+    }
+    if (newPin !== newPin2) {
+      error.textContent = '兩次輸入的新密碼不一樣。';
+      return;
+    }
+    const before = player.pin;
+    player.pin = newPin;
+    if (!(await busy(pinForm.querySelector('button[type="submit"]'), savePlayer))) {
+      player.pin = before;
+      return;
+    }
+    $('#pin-dialog').close();
+    alert('密碼改好了！下次登入要用新密碼喔。');
+  });
 
   // ── 採集新化石（數學練習）─────────────────────────
   // 獎勵哪一塊骨頭：從所有恐龍的所有骨頭裡隨機挑一塊（不管有沒有這種恐龍）。

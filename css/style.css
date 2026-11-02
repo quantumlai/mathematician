@@ -252,6 +252,30 @@ body.visiting .topbar { background: #2f3a44; }
 }
 .grade-option:has(input:checked) { border-color: var(--accent); background: #5a4a40; }
 .grade-option input { width: 18px; height: 18px; accent-color: var(--accent); }
+.pin-section { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.pin-input {
+  width: 160px;
+  font: inherit;
+  font-size: 24px;
+  letter-spacing: 10px;
+  text-align: center;
+  padding: 8px;
+  border-radius: 10px;
+  border: 2px solid #8b6b45;
+  background: #f6ecdc;
+  color: #2b1d0e;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.pin-input::placeholder { letter-spacing: 2px; font-size: 16px; color: #a58c6c; }
+.pin-input:focus { outline: 3px solid var(--accent); }
+.pin-input[hidden] { display: none; }
+#confirm-error:empty { display: none; }
+.pin-dialog { max-width: min(360px, calc(100vw - 32px)); }
+.pin-form { display: flex; flex-direction: column; gap: 10px; }
+.pin-form label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; color: var(--muted); }
+.pin-form .pin-input { width: 100%; }
+.pin-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .layout {
   display: flex;
