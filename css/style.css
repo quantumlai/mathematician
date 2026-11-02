@@ -48,6 +48,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .link-button:hover { background: none; color: var(--text); }
 
 /* 每個畫面只顯示自己的區塊；參觀別人的博物館時不顯示編輯用的按鈕 */
+body:not(.mode-loading) .loading-only,
 body:not(.mode-login) .login-only,
 body:not(.mode-museum) .museum-only,
 body:not(.mode-edit) .edit-only,
@@ -91,7 +92,30 @@ body:not(.visiting) .visit-only { display: none !important; }
 .menu-icon { font-size: 22px; line-height: 1; }
 #museum-title { overflow: hidden; text-overflow: ellipsis; }
 body.mode-login .menu-button,
-body:not(.mode-login) .login-title { display: none; }
+body.mode-loading .menu-button,
+body:not(.mode-login):not(.mode-loading) .login-title { display: none; }
+
+/* ── 載入中 ───────────────────────── */
+.splash {
+  height: calc(100% - 52px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: linear-gradient(#3f3229, #5e4b3d 60%, #4a3220);
+}
+.splash-sign {
+  padding: 20px 32px;
+  text-align: center;
+  background: linear-gradient(#3e2c1f, #2a1d13);
+  border: 4px solid #c7a26a;
+  border-radius: 14px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+.splash-bone { font-size: 40px; animation: splash-bob 1s ease-in-out infinite alternate; }
+@keyframes splash-bob { from { transform: rotate(-20deg); } to { transform: rotate(20deg); } }
+.splash-text { margin: 0; color: var(--muted); font-size: 16px; }
 .menu {
   position: fixed;
   left: 12px;

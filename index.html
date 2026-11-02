@@ -6,7 +6,7 @@
   <title>恐龍博物館</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="mode-login">
+<body class="mode-loading">
   <header class="topbar">
     <h1>
       <button id="menu-button" type="button" class="menu-button" aria-haspopup="menu" aria-expanded="false">
@@ -48,6 +48,16 @@
   </header>
 
   <!-- 登入：背後是範例展品，前面是輸入玩家代號的卡片 -->
+  <!-- 剛打開網頁：載入素材、確認上次的登入時先顯示這個，不會閃過登入畫面 -->
+  <main id="splash" class="splash loading-only" aria-live="polite">
+    <div class="splash-sign">
+      <div class="login-sign-title">恐龍博物館</div>
+      <div class="login-sign-sub">DINOSAUR MUSEUM</div>
+    </div>
+    <div class="splash-bone">🦴</div>
+    <p class="splash-text">載入中…</p>
+  </main>
+
   <main id="login" class="login login-only">
     <div id="showcase" class="showcase" aria-hidden="true">
       <div id="showcase-hall" class="hall"></div>

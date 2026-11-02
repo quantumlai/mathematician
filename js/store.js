@@ -9,6 +9,8 @@
 //
 // 記住登入：輸入密碼登入後，這台電腦的瀏覽器會記住是誰（localStorage），重新整理不用再登入。
 // 每次有使用就延長，超過 24 小時沒用、或按登出才需要重新登入。
+// 同時在瀏覽器留一份玩家資料的副本（不含密碼），打開網頁時先用副本畫出博物館，
+// 背景再向 LootLocker 拿最新的資料（見 cached、resume）。
 //
 // LootLocker 的限制：
 //   - 每個值最多 1500 個字，所以一份資料會切成好幾段：pub.n 是段數，pub.0、pub.1… 是內容。
@@ -31,6 +33,7 @@ window.PlayerStore = (() => {
   const CHUNK = 1400;
   const REMEMBER_KEY = `fossil-museum-session:${ENV.id}`; // 每個環境分開記，不會把開發環境的登入帶到正式環境
   const REMEMBER_MS = 24 * 60 * 60 * 1000;
+  const CACHE_KEY = `fossil-museum-cache:${ENV.id}`;
 
   let session = null; // { token, identifier, playerId }
   let remembered = false; // 這次登入是不是要記在瀏覽器裡
@@ -48,8 +51,28 @@ window.PlayerStore = (() => {
     remembered = false;
     try {
       localStorage.removeItem(REMEMBER_KEY);
+      localStorage.removeItem(CACHE_KEY);
     } catch (err) {
       // 沒關係
+    }
+  }
+
+  // 玩家資料的副本：只在記住登入時留，不含密碼
+  function writeCache(player) {
+    if (!remembered || !session) return;
+    const { pin, ...rest } = player;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ identifier: session.identifier, player: rest }));
+    } catch (err) {
+      // 存不下就算了，下次打開只是慢一點
+    }
+  }
+
+  function readSaved(key) {
+    try {
+      return JSON.parse(localStorage.getItem(key) || 'null');
+    } catch (err) {
+      return null;
     }
   }
 
@@ -158,7 +181,7 @@ window.PlayerStore = (() => {
     const pub = unpack(items, 'pub');
     if (!pub) return null;
     const priv = unpack(items, 'priv') || {};
-    return {
+    const player = {
       id: session.identifier.slice('museum:'.length),
       ...publicPart(pub),
       pin: items.find((it) => it.key === 'pin')?.value || '',
@@ -166,6 +189,8 @@ window.PlayerStore = (() => {
       quizzes: Array.isArray(priv.quizzes) ? priv.quizzes : [],
       createdAt: priv.createdAt || 0,
     };
+    writeCache(player);
+    return player;
   }
 
   return {
@@ -180,9 +205,19 @@ window.PlayerStore = (() => {
     },
 
     // 輸入密碼、登入成功後呼叫：記住這次登入
-    remember() {
+    remember(player) {
       remembered = true;
       rememberNow();
+      if (player) writeCache(player);
+    },
+
+    // 打開網頁時馬上可用的副本（上次的資料、不含密碼）；沒有記住的登入就回傳 null。
+    // 只能拿來先顯示，存檔前要等 resume() 拿到最新的資料。
+    cached() {
+      const saved = readSaved(REMEMBER_KEY);
+      const cache = readSaved(CACHE_KEY);
+      if (!saved?.identifier || !(saved.until > Date.now()) || cache?.identifier !== saved.identifier) return null;
+      return cache.player || null;
     },
 
     // 打開網頁時：24 小時內登入過就直接接續，回傳玩家資料；沒有就回傳 null
@@ -222,6 +257,7 @@ window.PlayerStore = (() => {
         metadata: encode({ name: player.name, grade: player.grade, role: player.role, exhibits: player.exhibits.length, updatedAt: player.updatedAt }),
       });
       request('PATCH', '/game/player/name', { name: player.name }).catch(() => {});
+      writeCache(player);
     },
 
     // 所有建立過博物館的玩家：[{ key, name, grade, role, exhibitCount, updatedAt }]

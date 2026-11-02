@@ -94,7 +94,11 @@
             w: img.naturalWidth,
             h: img.naturalHeight,
             baseScale: part.scale ?? dino.scale ?? null,
-            mask: buildMask(img),
+            // 透明度要逐點讀圖，比較慢：第一次用到這塊骨頭（顯示在展台上、被點到）才讀
+            get mask() {
+              if (this._mask === undefined) this._mask = buildMask(img);
+              return this._mask;
+            },
           };
         }));
       }
@@ -802,11 +806,12 @@
         minY = Math.min(minY, y);
         maxY = Math.max(maxY, y);
       };
-      if (part.mask) {
+      const mask = part.mask;
+      if (mask) {
         const step = Math.max(2, Math.round(Math.max(part.w, part.h) / 120));
         for (let v = 0; v < part.h; v += step) {
           for (let u = 0; u < part.w; u += step) {
-            if (part.mask[v * part.w + u] > 30) add(u + step / 2, v + step / 2);
+            if (mask[v * part.w + u] > 30) add(u + step / 2, v + step / 2);
           }
         }
       } else {
@@ -1023,17 +1028,20 @@
       return;
     }
     if (e.target.closest('[data-quiz]')) {
-      startQuiz();
+      whenSynced(startQuiz);
       return;
     }
     const editBtn = e.target.closest('[data-edit]');
     if (editBtn && !readonly()) {
-      const ex = exhibits.find((x) => x.id === editBtn.dataset.edit);
-      if (ex) openEditor(ex, false);
+      const id = editBtn.dataset.edit;
+      whenSynced(() => {
+        const ex = player.exhibits.find((x) => x.id === id);
+        if (ex && owner === player) openEditor(ex, false);
+      });
       return;
     }
     if (e.target.closest('[data-new]') && !readonly()) {
-      newExhibit();
+      whenSynced(newExhibit);
       return;
     }
     const bay = e.target.closest('.bay[data-id]');
@@ -1115,7 +1123,7 @@
   }
 
   function setMode(mode) {
-    for (const m of ['login', 'museum', 'edit']) document.body.classList.toggle(`mode-${m}`, m === mode);
+    for (const m of ['loading', 'login', 'museum', 'edit']) document.body.classList.toggle(`mode-${m}`, m === mode);
     document.body.classList.toggle('visiting', mode === 'museum' && readonly());
     const title = owner ? museumName(owner) : '恐龍博物館';
     // 左上角：寬爸的恐龍博物館（小三）；入口的大招牌不加年級
@@ -1498,7 +1506,7 @@
     enforceInventory(p);
     player = p;
     if (!(await busy($('#btn-enter'), savePlayer))) return;
-    window.PlayerStore.remember(); // 24 小時內重新整理網頁不用再登入
+    window.PlayerStore.remember(player); // 24 小時內重新整理網頁不用再登入
     if (imported?.legacy) {
       try {
         localStorage.setItem(LEGACY_UPLOADED_KEY, p.id);
@@ -1570,9 +1578,9 @@
     closeMenu();
     const action = item.dataset.menu;
     if (action === 'report') openReport();
-    else if (action === 'role') openRoleDialog();
-    else if (action === 'pin') openPinDialog();
-    else if (action === 'new' && owner === player && !editing) newExhibit();
+    else if (action === 'role') whenSynced(openRoleDialog);
+    else if (action === 'pin') whenSynced(openPinDialog);
+    else if (action === 'new' && owner === player && !editing) whenSynced(newExhibit);
     else if (action === 'logout') logout();
     else if (action === 'clear') $('#btn-clear').click();
     else if (action === 'remove') $('#btn-remove').click();
@@ -1805,7 +1813,7 @@
 
   // ── 頂部按鈕 ──────────────────────────────────────
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
-  $('#btn-quiz').addEventListener('click', startQuiz);
+  $('#btn-quiz').addEventListener('click', () => whenSynced(startQuiz));
   $('#btn-quiz-edit').addEventListener('click', startQuiz);
   $('#btn-visit').addEventListener('click', openVisitList);
   $('#btn-visit-other').addEventListener('click', openVisitList);
@@ -1847,19 +1855,47 @@
     }
   });
 
-  // 24 小時內在這台電腦登入過，就直接回到自己的博物館
-  async function resumeLogin() {
-    let saved = null;
-    try {
-      saved = await window.PlayerStore.resume();
-    } catch (err) {
-      console.warn('無法接續上次的登入：', err);
-    }
-    if (!saved) return false;
+  // ── 打開網頁 ──────────────────────────────────────
+  // 24 小時內在這台電腦登入過，就直接回到自己的博物館：
+  //   1. 先用瀏覽器裡的副本畫出博物館（幾乎不用等）
+  //   2. 背景向 LootLocker 拿最新的資料，拿到後換上去（可能在別台裝置玩過）
+  // 拿到最新資料之前，會存檔的動作（採集、編輯、換角色、改密碼）先等一下，免得用舊資料蓋掉新資料。
+  let synced = Promise.resolve(true);
+
+  async function whenSynced(action) {
+    if (await synced) action();
+  }
+
+  function enterAs(saved) {
     player = cleanPlayer(saved);
     enforceInventory(player);
     buildLibrary();
     showMuseum(player);
+  }
+
+  // 背景同步完成：換上最新的資料；登入失效或連不上就回到登入畫面
+  async function finishSync(resuming) {
+    let fresh = null;
+    let error = null;
+    try {
+      fresh = await resuming;
+    } catch (err) {
+      error = err;
+    }
+    if (!fresh) {
+      if (error) alert(`${error.message}，請重新登入。`);
+      showLogin();
+      return false;
+    }
+    const wasHome = owner === player && !editing;
+    player = cleanPlayer(fresh);
+    enforceInventory(player);
+    buildLibrary();
+    if (wasHome) {
+      const left = museum.scrollLeft;
+      showMuseum(player);
+      museum.scrollLeft = left;
+    }
     return true;
   }
 
@@ -1872,9 +1908,26 @@
     envBadge.hidden = false;
   }
 
+  // 先顯示「載入中」，同時載入素材和確認上次的登入（兩件事一起做，比較快）
   (async () => {
+    const cached = window.PlayerStore.cached();
+    const resuming = window.PlayerStore.resume();
+    resuming.catch(() => {}); // 失敗在下面處理
     await Promise.all([loadLibrary(), loadPedestals()]);
     buildPedestalPicker();
-    if (!(await resumeLogin())) showLogin();
+    if (cached) {
+      enterAs(cached);
+      synced = finishSync(resuming);
+      return;
+    }
+    // 沒有副本：等 LootLocker 回應
+    let saved = null;
+    try {
+      saved = await resuming;
+    } catch (err) {
+      console.warn('無法接續上次的登入：', err);
+    }
+    if (saved) enterAs(saved);
+    else showLogin();
   })();
 })();
