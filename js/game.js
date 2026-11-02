@@ -37,6 +37,7 @@
   const museum = $('#museum');
   const hallSize = $('#hall-size');
   const hall = $('#hall');
+  const library = $('#library');
 
   // iPhone / iPad 的瀏覽器不理會 viewport 的 user-scalable=no，兩指縮放會把整頁放大、縮不回來。
   // gesturestart 是 Safari 專用的縮放手勢事件，擋掉就不會整頁縮放（點兩下放大由 CSS touch-action 擋）。
@@ -421,6 +422,7 @@
     if (gesture.type === 'drag' && e.pointerId === gesture.id) {
       p.x = pt.x + gesture.offX;
       p.y = pt.y + gesture.offY;
+      showReturnHint(p, isOverLibrary(e.clientX, e.clientY));
     } else if (gesture.type === 'rotate' && e.pointerId === gesture.id) {
       const angle = Math.atan2(pt.y - p.y, pt.x - p.x);
       let rot = gesture.rot + ((angle - gesture.angle) * 180) / Math.PI;
@@ -447,10 +449,29 @@
     render(p);
   });
 
+  // 把骨頭拖到化石庫上放開，就收回化石庫
+  function isOverLibrary(x, y) {
+    const r = library.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+
+  function showReturnHint(piece, on) {
+    library.classList.toggle('drop-target', on);
+    elements.get(piece?.uid)?.classList.toggle('returning', on);
+  }
+
   function onPointerEnd(e) {
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (!gesture) return;
+    if (gesture.type === 'drag' && e.pointerId === gesture.id) {
+      const piece = gesture.piece;
+      const back = e.type === 'pointerup' && isOverLibrary(e.clientX, e.clientY);
+      showReturnHint(piece, false);
+      endGesture();
+      if (back) removePiece(piece);
+      return;
+    }
     if (gesture.type === 'pinch') {
       // 放開一指後，用剩下那根手指繼續拖曳
       const rest = [...pointers.keys()].find((id) => gesture.ids.includes(id));
@@ -617,10 +638,29 @@
   }
 
   // 從化石庫拖進工作台；只點一下就放在工作台中間附近。
+  // 滑鼠：直接按住拖曳。觸控：按住一下、骨頭浮起來後再拖（直接滑動是捲動化石庫）。
   // 還沒採集到、用過的骨頭不能再拿；用過的骨頭在工作台上的話，點它會選取那一塊。
+  const LONG_PRESS_MS = 250;
+
   function enableThumbDrag(thumb, key, set) {
     let ghost = null;
-    let start = null;
+    let start = null; // { x, y, touch, scrolling }
+    let timer = 0;
+
+    function lift(x, y) {
+      ghost = document.createElement('img');
+      ghost.className = 'drag-ghost';
+      ghost.src = parts[key].src;
+      document.body.appendChild(ghost);
+      thumb.classList.add('lifting');
+      moveGhost(x, y);
+    }
+
+    // 觸控時把骨頭放在手指上方，才不會被手指擋住
+    function moveGhost(x, y) {
+      ghost.style.transform = `translate(${x - 70}px, ${y - (start?.touch ? 100 : 40)}px)`;
+      ghost.classList.toggle('over-library', isOverLibrary(x, y));
+    }
 
     thumb.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -642,32 +682,43 @@
         }
         return;
       }
-      start = { x: e.clientX, y: e.clientY };
+      start = { x: e.clientX, y: e.clientY, touch: e.pointerType !== 'mouse', scrolling: false };
       thumb.setPointerCapture(e.pointerId);
+      if (start.touch) timer = setTimeout(() => start && !start.scrolling && lift(start.x, start.y), LONG_PRESS_MS);
     });
 
     thumb.addEventListener('pointermove', (e) => {
       if (!start) return;
-      if (!ghost && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
-        ghost = document.createElement('img');
-        ghost.className = 'drag-ghost';
-        ghost.src = parts[key].src;
-        document.body.appendChild(ghost);
+      if (!ghost) {
+        const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+        if (start.touch) {
+          // 還沒浮起來就在滑：是在捲動化石庫
+          if (moved > 8) {
+            start.scrolling = true;
+            clearTimeout(timer);
+          }
+          return;
+        }
+        if (moved > 6) lift(e.clientX, e.clientY);
       }
-      if (ghost) {
-        ghost.style.transform = `translate(${e.clientX - 70}px, ${e.clientY - 40}px)`;
-      }
+      if (ghost) moveGhost(e.clientX, e.clientY);
     });
+
+    // 骨頭浮起來之後，手指移動不要捲動畫面
+    thumb.addEventListener('touchmove', (e) => {
+      if (ghost) e.preventDefault();
+    }, { passive: false });
+    thumb.addEventListener('contextmenu', (e) => e.preventDefault());
 
     thumb.addEventListener('pointerup', (e) => {
       if (!start) return;
       let piece = null;
       if (ghost) {
-        if (isInsideViewport(e.clientX, e.clientY)) {
-          const pt = toWorld(e.clientX, e.clientY);
+        if (isInsideViewport(e.clientX, e.clientY) && !isOverLibrary(e.clientX, e.clientY)) {
+          const pt = toWorld(e.clientX, e.clientY - (start.touch ? 60 : 0));
           piece = addPiece(key, set, pt.x, pt.y);
         }
-      } else {
+      } else if (!start.scrolling) {
         const jitter = () => (Math.random() - 0.5) * 160;
         piece = addPiece(key, set, WORLD_W / 2 + jitter(), WORLD_H * 0.45 + jitter());
       }
@@ -681,9 +732,11 @@
     thumb.addEventListener('pointercancel', cleanup);
 
     function cleanup() {
+      clearTimeout(timer);
       ghost?.remove();
       ghost = null;
       start = null;
+      thumb.classList.remove('lifting');
     }
   }
 
@@ -996,7 +1049,6 @@
 
   // ── 手機：底部的化石庫面板 ────────────────────────
   // 拖把手調整高度（放開時停在收起 / 一半 / 大部分），點一下在收起和一半之間切換。
-  const library = $('#library');
   const sheetHandle = $('#sheet-handle');
   const phoneLayout = window.matchMedia('(max-width: 720px)');
   const SHEET_MIN = 52; // 收起時只露出把手
