@@ -1366,6 +1366,7 @@
     enforceInventory(p);
     player = p;
     if (!(await busy($('#btn-enter'), savePlayer))) return;
+    window.PlayerStore.remember(); // 24 小時內重新整理網頁不用再登入
     if (imported?.legacy) {
       try {
         localStorage.setItem(LEGACY_UPLOADED_KEY, p.id);
@@ -1628,6 +1629,9 @@
 
   placardTitle.addEventListener('input', markDirty);
   placardTitle.addEventListener('keydown', (e) => {
+    // 中文輸入法選字時按的 Enter 不算（keyCode 229 是 Safari 選完字後補送的那一下），
+    // 不然組字到一半就離開欄位，字會重複出現（例如「暴龍暴龍」）
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       placardTitle.blur();
@@ -1678,9 +1682,25 @@
     }
   });
 
+  // 24 小時內在這台電腦登入過，就直接回到自己的博物館
+  async function resumeLogin() {
+    let saved = null;
+    try {
+      saved = await window.PlayerStore.resume();
+    } catch (err) {
+      console.warn('無法接續上次的登入：', err);
+    }
+    if (!saved) return false;
+    player = cleanPlayer(saved);
+    enforceInventory(player);
+    buildLibrary();
+    showMuseum(player);
+    return true;
+  }
+
   (async () => {
     await Promise.all([loadLibrary(), loadPedestals()]);
     buildPedestalPicker();
-    showLogin();
+    if (!(await resumeLogin())) showLogin();
   })();
 })();

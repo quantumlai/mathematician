@@ -7,6 +7,9 @@
 //   pin    不公開：4 位數密碼（明碼，忘記時可以在 LootLocker 後台的玩家資料裡查）
 // 「參觀其他博物館」的清單來自 LootLocker 排行榜 museums（每次存檔都送一次，分數是展品數）。
 //
+// 記住登入：輸入密碼登入後，這台電腦的瀏覽器會記住是誰（localStorage），重新整理不用再登入。
+// 每次有使用就延長，超過 24 小時沒用、或按登出才需要重新登入。
+//
 // LootLocker 的限制：
 //   - 每個值最多 1500 個字，所以一份資料會切成好幾段：pub.n 是段數，pub.0、pub.1… 是內容。
 //   - 不能存 emoji 這類 4 位元組的字，存之前先轉成 \uXXXX 跳脫字元，讀回來時 JSON.parse 會還原。
@@ -24,8 +27,29 @@ window.PlayerStore = (() => {
   const GAME_VERSION = '1.0.0';
   const LEADERBOARD = 'museums';
   const CHUNK = 1400;
+  const REMEMBER_KEY = 'fossil-museum-session';
+  const REMEMBER_MS = 24 * 60 * 60 * 1000;
 
   let session = null; // { token, identifier, playerId }
+  let remembered = false; // 這次登入是不是要記在瀏覽器裡
+
+  function rememberNow() {
+    if (!remembered || !session) return;
+    try {
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ ...session, until: Date.now() + REMEMBER_MS }));
+    } catch (err) {
+      // 記不住就只好下次重新登入
+    }
+  }
+
+  function forget() {
+    remembered = false;
+    try {
+      localStorage.removeItem(REMEMBER_KEY);
+    } catch (err) {
+      // 沒關係
+    }
+  }
 
   function idOf(name) {
     return String(name).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -45,13 +69,14 @@ window.PlayerStore = (() => {
     } catch (err) {
       throw new Error('連不上伺服器，請檢查網路');
     }
-    // 登入過期就用同一個代號重新登入，再試一次
-    if (res.status === 401 && retry && session) {
+    // 登入過期就用同一個代號重新登入，再試一次（LootLocker 的 token 失效時回 403）
+    if ((res.status === 401 || res.status === 403) && retry && session) {
       await startSession(session.identifier);
       return request(method, path, body, false);
     }
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.message || `伺服器錯誤（${res.status}）`);
+    rememberNow(); // 有在用就延長 24 小時
     return data;
   }
 
@@ -124,29 +149,58 @@ window.PlayerStore = (() => {
     };
   }
 
+  // 讀目前登入玩家自己的資料；還沒建立過博物館回傳 null
+  async function readOwn() {
+    const data = await request('GET', '/game/v1/player/storage');
+    const items = data?.payload || [];
+    const pub = unpack(items, 'pub');
+    if (!pub) return null;
+    const priv = unpack(items, 'priv') || {};
+    return {
+      id: session.identifier.slice('museum:'.length),
+      ...publicPart(pub),
+      pin: items.find((it) => it.key === 'pin')?.value || '',
+      bones: Array.isArray(priv.bones) ? priv.bones : [],
+      quizzes: Array.isArray(priv.quizzes) ? priv.quizzes : [],
+      createdAt: priv.createdAt || 0,
+    };
+  }
+
   return {
     idOf,
 
     // 用這個代號登入（第一次用的代號 LootLocker 會自動建立玩家），回傳完整的玩家資料；
     // 還沒建立過博物館的代號回傳 null
     async open(name) {
-      const id = idOf(name);
-      await startSession(`museum:${id}`);
-      const data = await request('GET', '/game/v1/player/storage');
-      const items = data?.payload || [];
-      const pub = unpack(items, 'pub');
-      if (!pub) return null;
-      const priv = unpack(items, 'priv') || {};
-      return {
-        id,
-        ...publicPart(pub),
-        pin: items.find((it) => it.key === 'pin')?.value || '',
-        bones: Array.isArray(priv.bones) ? priv.bones : [],
-        quizzes: Array.isArray(priv.quizzes) ? priv.quizzes : [],
-        createdAt: priv.createdAt || 0,
-      };
+      forget();
+      await startSession(`museum:${idOf(name)}`);
+      return readOwn();
     },
 
+    // 輸入密碼、登入成功後呼叫：記住這次登入
+    remember() {
+      remembered = true;
+      rememberNow();
+    },
+
+    // 打開網頁時：24 小時內登入過就直接接續，回傳玩家資料；沒有就回傳 null
+    async resume() {
+      let saved = null;
+      try {
+        saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null');
+      } catch (err) {
+        saved = null;
+      }
+      if (!saved?.identifier || !saved.token || !(saved.until > Date.now())) {
+        forget();
+        return null;
+      }
+      session = { token: saved.token, identifier: saved.identifier, playerId: saved.playerId };
+      remembered = true;
+      const player = await readOwn(); // token 過期的話 request 會自動用同一個代號重新登入
+      if (!player) forget();
+      return player;
+    },
     // 存到目前登入的玩家（要先 open 同一個代號）
     async save(player) {
       if (!session || session.identifier !== `museum:${player.id}`) throw new Error('還沒登入這個玩家');
@@ -210,6 +264,7 @@ window.PlayerStore = (() => {
     currentKey: () => session?.playerId || null,
 
     close() {
+      forget();
       session = null;
     },
   };

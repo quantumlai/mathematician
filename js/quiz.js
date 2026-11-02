@@ -220,6 +220,7 @@ window.MathQuiz = (() => {
 
     btn.addEventListener('click', submit);
     body.onkeydown = (e) => {
+      if (e.isComposing || e.keyCode === 229) return; // 輸入法選字的 Enter
       if (e.key === 'Enter') {
         e.preventDefault();
         submit();
