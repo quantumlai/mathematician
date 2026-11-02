@@ -103,6 +103,89 @@ body:not(.mode-login) .login-title { display: none; }
 .menu[hidden] { display: none; }
 .menu button { display: block; width: 100%; text-align: left; font-size: 17px; padding: 10px 12px; background: none; border: none; }
 .menu button:hover { background: var(--panel-2); }
+.menu hr { border: none; border-top: 1px solid #5d4d42; margin: 4px 6px; }
+
+/* ── 角色 ─────────────────────────── */
+.role-section[hidden] { display: none; }
+.role-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.role-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px 6px;
+  border: 2px solid #5d4d42;
+  border-radius: 10px;
+}
+.role-option.active { border-color: var(--accent); background: #5a4a40; box-shadow: 0 0 0 2px var(--accent); }
+.role-figure { width: 100%; aspect-ratio: 220 / 250; overflow: hidden; }
+.role-figure svg { display: block; width: 100%; height: auto; transform: translateX(4.5%); } /* 角色畫在 x=100，畫布寬 220 */
+.role-name { font-size: 11px; line-height: 1.2; text-align: center; min-height: 2.4em; display: flex; align-items: center; }
+.role-dialog { max-width: min(560px, calc(100vw - 32px)); }
+.role-dialog .role-name { font-size: 13px; }
+.role-dialog .role-list { margin-bottom: 14px; }
+
+/* 館長站在博物館門口 */
+.host { position: absolute; left: 556px; top: 500px; width: 190px; text-align: center; }
+.host-figure svg { display: block; width: 190px; height: auto; }
+.host-bubble {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 8px 16px;
+  font-size: 22px;
+  font-weight: bold;
+  white-space: nowrap;
+  color: #3b2b1d;
+  background: #fffaf0;
+  border-radius: 18px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+.host-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  margin-left: -10px;
+  border: 10px solid transparent;
+  border-top-color: #fffaf0;
+  border-bottom: none;
+}
+.host-name {
+  display: inline-block;
+  margin-top: -6px;
+  padding: 3px 14px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #f6dfb0;
+  background: rgba(43, 32, 24, 0.85);
+  border-radius: 14px;
+}
+
+/* 參觀時自己的角色固定在左下角 */
+.visitor {
+  position: fixed;
+  left: 10px;
+  bottom: 6px;
+  z-index: 40;
+  height: min(36vh, 280px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.visitor:empty { display: none; }
+.visitor-figure { flex: 1; min-height: 0; }
+.visitor-figure svg { display: block; height: 100%; width: auto; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.35)); }
+.visitor-name {
+  margin-top: -4px;
+  padding: 2px 12px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #2b1d0e;
+  background: var(--accent);
+  border-radius: 12px;
+}
 .player-chip:empty { display: none; }
 .topbar-actions { display: flex; gap: 8px; flex: none; }
 body.visiting .topbar { background: #2f3a44; }
@@ -217,7 +300,7 @@ body.visiting .topbar { background: #2f3a44; }
 .entrance-sign {
   position: absolute;
   left: 60px;
-  right: 60px;
+  width: 520px; /* 門的上方，門的中心在 x=320 */
   top: 90px;
   padding: 26px 20px 22px;
   text-align: center;
@@ -242,7 +325,7 @@ body.visiting .topbar { background: #2f3a44; }
 }
 .entrance-dig {
   position: absolute;
-  left: 50%;
+  left: 320px;
   top: 500px;
   transform: translateX(-50%);
   white-space: nowrap;
@@ -253,8 +336,8 @@ body.visiting .topbar { background: #2f3a44; }
 }
 .entrance-count {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 60px;
+  width: 520px;
   top: 300px;
   text-align: center;
   font-size: 26px;
@@ -858,6 +941,7 @@ body.visiting .topbar { background: #2f3a44; }
   .mode-edit #museum-title, .mode-museum #museum-title { display: none; }
   .topbar h1 { flex: none; }
   .report-avatar { width: 96px; }
+  .visitor { height: 26vh; }
   .report-headline { font-size: 20px; }
   .review-item { flex-wrap: wrap; }
   .review-scratch { margin-left: 34px; }

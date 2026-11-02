@@ -1,4 +1,4 @@
-// SVG 美術：主角、邪惡博士、化石骨架、場景
+// SVG 美術：主角、邪惡博士、可選擇的角色、化石骨架、場景
 
 const SKIN = '#f6d2b0';
 const SKIN_LINE = '#c98f6b';
@@ -180,6 +180,350 @@ function doctorSVG(mood = 'evil') {
     ${mood === 'evil' ? `<text class="haha" x="166" y="60" font-size="18" font-weight="900" fill="#c0272d" font-family="sans-serif">哈!</text>` : ''}
   </svg>`;
 }
+
+/* ---------- 可選擇的角色 ---------- */
+// 和主角一樣畫在 220×320 的畫布上、身體中心在 x=100，表情有 normal 和 happy（其他表情用 normal）。
+
+// 共用的眼睛、嘴巴、腮紅、手臂
+function charEyes(mood, lx, rx, y, color = INK) {
+  if (mood === 'happy') {
+    return `<path d="M${lx - 7} ${y + 3} Q${lx} ${y - 8} ${lx + 7} ${y + 3}" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M${rx - 7} ${y + 3} Q${rx} ${y - 8} ${rx + 7} ${y + 3}" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round"/>`;
+  }
+  return `<ellipse cx="${lx}" cy="${y}" rx="5" ry="6.5" fill="${color}"/><ellipse cx="${rx}" cy="${y}" rx="5" ry="6.5" fill="${color}"/>
+          <circle cx="${lx + 2}" cy="${y - 3}" r="1.8" fill="#fff"/><circle cx="${rx + 2}" cy="${y - 3}" r="1.8" fill="#fff"/>`;
+}
+
+function charMouth(mood, cx, y, line = '#7a3a2a') {
+  if (mood === 'happy') {
+    return `<path d="M${cx - 15} ${y - 4} Q${cx} ${y + 22} ${cx + 15} ${y - 4} Z" fill="#7a2a2a"/>
+            <path d="M${cx - 9} ${y + 8} Q${cx} ${y + 17} ${cx + 9} ${y + 8} Q${cx} ${y + 12} ${cx - 9} ${y + 8} Z" fill="#e8777a"/>`;
+  }
+  return `<path d="M${cx - 10} ${y} Q${cx} ${y + 9} ${cx + 10} ${y}" fill="none" stroke="${line}" stroke-width="3" stroke-linecap="round"/>`;
+}
+
+function charCheeks(lx, rx, y) {
+  return `<ellipse cx="${lx}" cy="${y}" rx="8" ry="5" fill="#f29a9a" opacity=".5"/>
+          <ellipse cx="${rx}" cy="${y}" rx="8" ry="5" fill="#f29a9a" opacity=".5"/>`;
+}
+
+// 動物和機器人的手臂：一條粗線加上圓圓的手掌
+function pawArm([s, e, h], color, paw, line, width = 14) {
+  return `
+    <path d="M${s} L${e} L${h}" fill="none" stroke="${line}" stroke-width="${width + 4}" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M${s} L${e} L${h}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${h[0]}" cy="${h[1]}" r="9.5" fill="${paw}" stroke="${line}" stroke-width="2"/>`;
+}
+
+// 手臂姿勢：normal 自然垂下，happy 雙手舉高
+function charArms(mood, shoulderY = 160, spread = 34) {
+  const l = 100 - spread;
+  const r = 100 + spread;
+  return mood === 'happy'
+    ? [[[l, shoulderY], [l - 24, shoulderY - 30], [l - 34, shoulderY - 64]], [[r, shoulderY], [r + 24, shoulderY - 30], [r + 34, shoulderY - 64]]]
+    : [[[l, shoulderY], [l - 12, shoulderY + 36], [l - 10, shoulderY + 66]], [[r, shoulderY], [r + 12, shoulderY + 36], [r + 10, shoulderY + 66]]];
+}
+
+const CHAR_SHADOW = `<ellipse cx="100" cy="312" rx="58" ry="7" fill="rgba(0,0,0,.18)"/>`;
+
+function girlSVG(mood = 'normal') {
+  const DRESS = '#f08fb0', DRESS_DARK = '#d86d92', HAIR = '#5a3420';
+  const armsSVG = charArms(mood, 160, 32).map(a => limb(a[0], a[1], a[2], DRESS)).join('');
+  return `
+  <svg class="char girl mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="可愛小女生">
+    ${CHAR_SHADOW}
+    <!-- 腿、白襪、紅鞋 -->
+    <rect x="80" y="244" width="15" height="54" rx="7" fill="${SKIN}" stroke="${SKIN_LINE}" stroke-width="1.5"/>
+    <rect x="105" y="244" width="15" height="54" rx="7" fill="${SKIN}" stroke="${SKIN_LINE}" stroke-width="1.5"/>
+    <rect x="79" y="276" width="17" height="20" rx="4" fill="#fff"/>
+    <rect x="104" y="276" width="17" height="20" rx="4" fill="#fff"/>
+    <path d="M72 296 h26 v10 h-30 q0 -6 4 -10z" fill="#d23c3c"/>
+    <path d="M102 296 h26 q4 4 4 10 h-30 z" fill="#d23c3c"/>
+    <!-- 綁在後面的長髮 -->
+    <path d="M48 104 Q42 56 100 50 Q158 56 152 104 L150 160 Q100 172 50 160 Z" fill="${HAIR}"/>
+    <!-- 洋裝 -->
+    <path d="M70 150 Q100 140 130 150 L152 252 Q100 262 48 252 Z" fill="${DRESS}" stroke="${DRESS_DARK}" stroke-width="2"/>
+    <path d="M56 236 Q100 246 144 236" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="2 7" stroke-linecap="round"/>
+    <path d="M82 146 Q92 162 100 150 Q108 162 118 146" fill="#fff" stroke="${DRESS_DARK}" stroke-width="1.5"/>
+    <circle cx="100" cy="176" r="4" fill="#fff"/><circle cx="100" cy="194" r="4" fill="#fff"/>
+    ${armsSVG}
+    <!-- 雙馬尾 -->
+    <ellipse cx="44" cy="128" rx="17" ry="26" fill="${HAIR}" transform="rotate(20 44 128)"/>
+    <ellipse cx="156" cy="128" rx="17" ry="26" fill="${HAIR}" transform="rotate(-20 156 128)"/>
+    <!-- 頭 -->
+    <circle cx="100" cy="102" r="47" fill="${SKIN}" stroke="${SKIN_LINE}" stroke-width="1.5"/>
+    <!-- 瀏海 -->
+    <path d="M52 104 Q46 52 100 50 Q154 52 148 104 Q142 82 126 74 Q118 90 100 80 Q84 92 74 76 Q58 84 52 104 Z" fill="${HAIR}"/>
+    <!-- 蝴蝶結 -->
+    <path d="M50 96 L36 84 L38 108 Z M50 96 L64 84 L62 108 Z" fill="#e8455f"/>
+    <circle cx="50" cy="96" r="5" fill="#c92f48"/>
+    <path d="M150 96 L136 84 L138 108 Z M150 96 L164 84 L162 108 Z" fill="#e8455f"/>
+    <circle cx="150" cy="96" r="5" fill="#c92f48"/>
+    <!-- 星星髮夾 -->
+    <path d="M122 66 l3 6 7 1 -5 5 1 7 -6 -3 -6 3 1 -7 -5 -5 7 -1 z" fill="#f2c94c" stroke="#c99a1f" stroke-width="1"/>
+    <path d="M74 95 Q82 91 90 95" fill="none" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M110 95 Q118 91 126 95" fill="none" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>
+    ${charEyes(mood, 82, 118, 108)}
+    ${mood === 'happy' ? '' : `<path d="M77 104 l-5 -3 M123 104 l5 -3" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`}
+    ${charCheeks(70, 130, 122)}
+    <path d="M98 114 Q100 118 102 114" fill="none" stroke="${SKIN_LINE}" stroke-width="2" stroke-linecap="round"/>
+    ${charMouth(mood, 100, 127)}
+  </svg>`;
+}
+
+function monkeySVG(mood = 'normal') {
+  const FUR = '#8b5a2b', LINE = '#5e3a18', FACE = '#f1d3a8';
+  const armsSVG = charArms(mood, 172, 30).map(a => pawArm(a, FUR, FACE, LINE)).join('');
+  return `
+  <svg class="char monkey mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="猴子">
+    ${CHAR_SHADOW}
+    <!-- 捲捲的尾巴 -->
+    <path d="M128 250 C176 262 200 224 184 196 C172 176 150 188 162 204" fill="none" stroke="${LINE}" stroke-width="13" stroke-linecap="round"/>
+    <path d="M128 250 C176 262 200 224 184 196 C172 176 150 188 162 204" fill="none" stroke="${FUR}" stroke-width="9" stroke-linecap="round"/>
+    <!-- 腳 -->
+    <ellipse cx="80" cy="290" rx="17" ry="22" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="120" cy="290" rx="17" ry="22" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="76" cy="305" rx="16" ry="7" fill="${FACE}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="124" cy="305" rx="16" ry="7" fill="${FACE}" stroke="${LINE}" stroke-width="2"/>
+    <!-- 身體 -->
+    <ellipse cx="100" cy="218" rx="44" ry="58" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="100" cy="226" rx="28" ry="40" fill="${FACE}"/>
+    ${armsSVG}
+    <!-- 耳朵 -->
+    <circle cx="48" cy="106" r="20" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <circle cx="48" cy="106" r="11" fill="${FACE}"/>
+    <circle cx="152" cy="106" r="20" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <circle cx="152" cy="106" r="11" fill="${FACE}"/>
+    <!-- 頭 -->
+    <circle cx="100" cy="104" r="48" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <path d="M100 86 Q88 70 76 74 Q58 80 62 104 Q60 124 74 136 Q86 148 100 148 Q114 148 126 136 Q140 124 138 104 Q142 80 124 74 Q112 70 100 86 Z" fill="${FACE}"/>
+    <path d="M86 62 Q94 52 100 62 Q106 52 114 62" fill="none" stroke="${LINE}" stroke-width="3" stroke-linecap="round"/>
+    ${charEyes(mood, 84, 116, 102)}
+    <ellipse cx="96" cy="118" rx="2.5" ry="2" fill="${LINE}"/><ellipse cx="104" cy="118" rx="2.5" ry="2" fill="${LINE}"/>
+    ${charCheeks(72, 128, 122)}
+    ${charMouth(mood, 100, 128)}
+  </svg>`;
+}
+
+function rabbitSVG(mood = 'normal') {
+  const FUR = '#f7f3ee', LINE = '#b8ada0', PINK = '#f5b3c0';
+  const armsSVG = charArms(mood, 184, 28).map(a => pawArm(a, FUR, FUR, LINE, 13)).join('');
+  const earTilt = mood === 'happy' ? 6 : 0;
+  return `
+  <svg class="char rabbit mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="兔子">
+    ${CHAR_SHADOW}
+    <!-- 長耳朵 -->
+    <g transform="rotate(${-12 - earTilt} 78 80)">
+      <ellipse cx="78" cy="50" rx="17" ry="42" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+      <ellipse cx="78" cy="54" rx="8" ry="31" fill="${PINK}"/>
+    </g>
+    <g transform="rotate(${12 + earTilt} 122 80)">
+      <ellipse cx="122" cy="50" rx="17" ry="42" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+      <ellipse cx="122" cy="54" rx="8" ry="31" fill="${PINK}"/>
+    </g>
+    <!-- 毛球尾巴 -->
+    <circle cx="146" cy="262" r="15" fill="#fff" stroke="${LINE}" stroke-width="2"/>
+    <!-- 大腳 -->
+    <ellipse cx="78" cy="298" rx="24" ry="11" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="122" cy="298" rx="24" ry="11" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <!-- 身體 -->
+    <ellipse cx="100" cy="234" rx="44" ry="56" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="100" cy="242" rx="26" ry="36" fill="#fff"/>
+    <!-- 紅蘿蔔領結 -->
+    <path d="M100 180 L84 172 L84 190 Z M100 180 L116 172 L116 190 Z" fill="#f08a3c"/>
+    <circle cx="100" cy="180" r="5" fill="#d9692a"/>
+    ${armsSVG}
+    <!-- 頭 -->
+    <ellipse cx="100" cy="122" rx="50" ry="46" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    ${charEyes(mood, 82, 118, 118)}
+    ${charCheeks(68, 132, 134)}
+    <path d="M95 128 L105 128 L100 134 Z" fill="${PINK}" stroke="#d98a99" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M100 134 L100 140" stroke="${LINE}" stroke-width="2"/>
+    ${mood === 'happy'
+      ? charMouth(mood, 100, 142)
+      : `<path d="M90 140 Q95 146 100 140 Q105 146 110 140" fill="none" stroke="#7a3a2a" stroke-width="2.5" stroke-linecap="round"/>
+         <rect x="95" y="141" width="10" height="9" rx="2" fill="#fff" stroke="${LINE}" stroke-width="1.5"/>`}
+    <path d="M66 128 L48 124 M66 134 L48 138 M134 128 L152 124 M134 134 L152 138" stroke="${LINE}" stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function lionSVG(mood = 'normal') {
+  const FUR = '#eab04e', LINE = '#a8701e', MANE = '#b8602a', MUZZLE = '#fbe6bf';
+  let mane = '';
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    mane += `<circle cx="${(100 + Math.cos(a) * 52).toFixed(1)}" cy="${(108 + Math.sin(a) * 52).toFixed(1)}" r="20" fill="${MANE}"/>`;
+  }
+  const armsSVG = charArms(mood, 178, 30).map(a => pawArm(a, FUR, FUR, LINE, 15)).join('');
+  return `
+  <svg class="char lion mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="獅子">
+    ${CHAR_SHADOW}
+    <!-- 尾巴 -->
+    <path d="M136 262 Q176 262 182 226" fill="none" stroke="${LINE}" stroke-width="10" stroke-linecap="round"/>
+    <path d="M136 262 Q176 262 182 226" fill="none" stroke="${FUR}" stroke-width="6" stroke-linecap="round"/>
+    <path d="M182 226 q-12 -10 -4 -24 q4 10 12 6 q4 14 -8 18z" fill="${MANE}"/>
+    <!-- 腳 -->
+    <rect x="68" y="262" width="26" height="40" rx="12" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <rect x="106" y="262" width="26" height="40" rx="12" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <path d="M74 300 v-6 M81 300 v-6 M88 300 v-6 M112 300 v-6 M119 300 v-6 M126 300 v-6" stroke="${LINE}" stroke-width="2" stroke-linecap="round"/>
+    <!-- 身體 -->
+    <ellipse cx="100" cy="222" rx="44" ry="54" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="100" cy="230" rx="26" ry="36" fill="${MUZZLE}"/>
+    ${armsSVG}
+    <!-- 鬃毛 -->
+    ${mane}
+    <circle cx="100" cy="108" r="54" fill="${MANE}"/>
+    <!-- 耳朵 -->
+    <circle cx="66" cy="72" r="13" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <circle cx="134" cy="72" r="13" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <circle cx="66" cy="72" r="6" fill="${MANE}"/><circle cx="134" cy="72" r="6" fill="${MANE}"/>
+    <!-- 臉 -->
+    <circle cx="100" cy="108" r="42" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    ${charEyes(mood, 84, 116, 100)}
+    ${charCheeks(70, 130, 118)}
+    <ellipse cx="100" cy="126" rx="22" ry="15" fill="${MUZZLE}"/>
+    <path d="M92 116 L108 116 L100 124 Z" fill="#5a3418" stroke-linejoin="round"/>
+    ${charMouth(mood, 100, 130, '#5a3418')}
+    <circle cx="88" cy="128" r="1.6" fill="${LINE}"/><circle cx="84" cy="123" r="1.6" fill="${LINE}"/>
+    <circle cx="112" cy="128" r="1.6" fill="${LINE}"/><circle cx="116" cy="123" r="1.6" fill="${LINE}"/>
+  </svg>`;
+}
+
+function sabertoothSVG(mood = 'normal') {
+  const FUR = '#d9944a', LINE = '#8a5420', STRIPE = '#8a5420', LIGHT = '#f7e2c0';
+  const armsSVG = charArms(mood, 176, 30).map(a => pawArm(a, FUR, LIGHT, LINE, 15)).join('');
+  return `
+  <svg class="char sabertooth mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="劍齒虎">
+    ${CHAR_SHADOW}
+    <!-- 短尾巴 -->
+    <path d="M136 256 Q164 254 170 232" fill="none" stroke="${LINE}" stroke-width="14" stroke-linecap="round"/>
+    <path d="M136 256 Q164 254 170 232" fill="none" stroke="${FUR}" stroke-width="10" stroke-linecap="round"/>
+    <!-- 腳 -->
+    <rect x="68" y="262" width="26" height="40" rx="12" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <rect x="106" y="262" width="26" height="40" rx="12" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="81" cy="300" rx="14" ry="6" fill="${LIGHT}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="119" cy="300" rx="14" ry="6" fill="${LIGHT}" stroke="${LINE}" stroke-width="2"/>
+    <!-- 身體與條紋 -->
+    <ellipse cx="100" cy="220" rx="46" ry="56" fill="${FUR}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="100" cy="230" rx="26" ry="38" fill="${LIGHT}"/>
+    <path d="M58 200 q12 4 16 14 M56 226 q12 2 16 12 M142 200 q-12 4 -16 14 M144 226 q-12 2 -16 12" fill="none" stroke="${STRIPE}" stroke-width="5" stroke-linecap="round"/>
+    ${armsSVG}
+    <!-- 耳朵 -->
+    <path d="M58 82 L62 44 L90 64 Z" fill="${FUR}" stroke="${LINE}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M142 82 L138 44 L110 64 Z" fill="${FUR}" stroke="${LINE}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M65 70 L66 54 L80 64 Z M135 70 L134 54 L120 64 Z" fill="#f2a6a6"/>
+    <!-- 頭 -->
+    <path d="M52 106 Q52 58 100 58 Q148 58 148 106 Q148 130 136 140 L148 146 L130 148 Q116 156 100 156 Q84 156 70 148 L52 146 L64 140 Q52 130 52 106 Z" fill="${FUR}" stroke="${LINE}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M100 60 L100 78 M86 62 L90 76 M114 62 L110 76" stroke="${STRIPE}" stroke-width="5" stroke-linecap="round"/>
+    <path d="M54 110 l14 2 M56 122 l12 0 M146 110 l-14 2 M144 122 l-12 0" stroke="${STRIPE}" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="100" cy="132" rx="26" ry="18" fill="${LIGHT}"/>
+    ${charEyes(mood, 82, 118, 104)}
+    ${charCheeks(68, 132, 118)}
+    <path d="M92 120 L108 120 L100 128 Z" fill="#6b3a1a" stroke-linejoin="round"/>
+    <!-- 長長的劍齒 -->
+    <path d="M88 136 Q86 154 92 166 Q95 152 95 137 Z" fill="#fffdf4" stroke="#b8ad96" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M112 136 Q114 154 108 166 Q105 152 105 137 Z" fill="#fffdf4" stroke="#b8ad96" stroke-width="1.5" stroke-linejoin="round"/>
+    ${mood === 'happy'
+      ? `<path d="M92 134 Q100 148 108 134 Z" fill="#7a2a2a"/>`
+      : `<path d="M94 134 Q100 139 106 134" fill="none" stroke="#6b3a1a" stroke-width="2.5" stroke-linecap="round"/>`}
+  </svg>`;
+}
+
+function parrotSVG(mood = 'normal') {
+  const RED = '#e2403a', LINE = '#9e2520', YELLOW = '#f6c83c', BLUE = '#3a7bd5', GREEN = '#4caf6a';
+  const wingUp = mood === 'happy';
+  const wing = (side) => {
+    const s = side === 'l' ? -1 : 1;
+    const x = 100 + s * 40;
+    const rot = wingUp ? s * -60 : s * 12;
+    return `<g transform="rotate(${rot} ${x} 170)">
+      <path d="M${x} 158 Q${x + s * 26} 196 ${x + s * 8} 252 Q${x - s * 8} 214 ${x - s * 6} 168 Z" fill="${BLUE}" stroke="#25569c" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M${x} 162 Q${x + s * 18} 186 ${x + s * 8} 214 Q${x - s * 2} 194 ${x - s * 2} 168 Z" fill="${YELLOW}"/>
+      <path d="M${x} 162 Q${x + s * 12} 176 ${x + s * 6} 192 Q${x} 180 ${x - s * 1} 166 Z" fill="${GREEN}"/>
+    </g>`;
+  };
+  return `
+  <svg class="char parrot mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="鸚鵡">
+    ${CHAR_SHADOW}
+    <!-- 長尾羽 -->
+    <path d="M90 240 L80 306 L98 300 L102 244 Z" fill="${BLUE}" stroke="#25569c" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M104 240 L112 308 L126 296 L112 240 Z" fill="${RED}" stroke="${LINE}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M96 242 L96 298 L106 300 L106 242 Z" fill="${YELLOW}"/>
+    <!-- 腳 -->
+    <path d="M86 254 L84 276 M114 254 L116 276" stroke="#7a7a7a" stroke-width="6" stroke-linecap="round"/>
+    <path d="M76 280 L84 276 L92 280 M108 280 L116 276 L124 280" fill="none" stroke="#7a7a7a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- 身體 -->
+    <ellipse cx="100" cy="196" rx="44" ry="64" fill="${RED}" stroke="${LINE}" stroke-width="2"/>
+    <ellipse cx="100" cy="212" rx="24" ry="38" fill="#f06a5c"/>
+    ${wing('l')}${wing('r')}
+    <!-- 頭 -->
+    <circle cx="100" cy="100" r="46" fill="${RED}" stroke="${LINE}" stroke-width="2"/>
+    <path d="M86 56 Q90 34 100 44 Q104 28 114 42 Q122 34 120 58 Z" fill="${RED}" stroke="${LINE}" stroke-width="2" stroke-linejoin="round"/>
+    <!-- 白色眼圈 -->
+    <ellipse cx="78" cy="98" rx="17" ry="15" fill="#fff"/>
+    <ellipse cx="122" cy="98" rx="17" ry="15" fill="#fff"/>
+    ${charEyes(mood, 80, 120, 98)}
+    ${charCheeks(68, 132, 120)}
+    <!-- 彎彎的鳥嘴 -->
+    <path d="M86 108 Q100 98 114 108 Q118 130 100 144 Q98 128 90 120 Q86 116 86 108 Z" fill="#f2e2b0" stroke="#8a7a50" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M90 122 Q100 128 108 124 Q104 136 96 136 Z" fill="#3a3330"/>
+    ${mood === 'happy' ? `<path d="M92 126 Q100 134 106 127" fill="none" stroke="#e8777a" stroke-width="3" stroke-linecap="round"/>` : ''}
+  </svg>`;
+}
+
+function robotSVG(mood = 'normal') {
+  const METAL = '#c8d4e2', DARK = '#7d8fa6', LINE = '#4e5d72', GLOW = '#6ff0ff';
+  const armsSVG = charArms(mood, 168, 40).map(a => pawArm(a, '#a9b8ca', '#ffcf5a', LINE, 12)).join('');
+  const face = mood === 'happy'
+    ? `<path d="M74 100 Q82 88 90 100" fill="none" stroke="${GLOW}" stroke-width="5" stroke-linecap="round"/>
+       <path d="M110 100 Q118 88 126 100" fill="none" stroke="${GLOW}" stroke-width="5" stroke-linecap="round"/>
+       <path d="M82 114 Q100 134 118 114 Z" fill="${GLOW}"/>`
+    : `<rect x="76" y="90" width="12" height="14" rx="3" fill="${GLOW}"/>
+       <rect x="112" y="90" width="12" height="14" rx="3" fill="${GLOW}"/>
+       <path d="M86 118 Q100 126 114 118" fill="none" stroke="${GLOW}" stroke-width="4" stroke-linecap="round"/>`;
+  return `
+  <svg class="char robot mood-${mood}" viewBox="0 0 220 320" xmlns="http://www.w3.org/2000/svg" aria-label="機器人">
+    ${CHAR_SHADOW}
+    <!-- 腳 -->
+    <rect x="74" y="236" width="18" height="56" rx="4" fill="${DARK}" stroke="${LINE}" stroke-width="2"/>
+    <rect x="108" y="236" width="18" height="56" rx="4" fill="${DARK}" stroke="${LINE}" stroke-width="2"/>
+    <rect x="64" y="288" width="34" height="18" rx="6" fill="${LINE}"/>
+    <rect x="102" y="288" width="34" height="18" rx="6" fill="${LINE}"/>
+    ${armsSVG}
+    <!-- 身體 -->
+    <rect x="58" y="150" width="84" height="94" rx="14" fill="${METAL}" stroke="${LINE}" stroke-width="2.5"/>
+    <rect x="72" y="164" width="56" height="44" rx="8" fill="#2c3a4c"/>
+    <circle cx="84" cy="178" r="5" fill="#ff6b6b"/>
+    <circle cx="100" cy="178" r="5" fill="${GLOW}"/>
+    <circle cx="116" cy="178" r="5" fill="#ffd166"/>
+    <path d="M80 196 h40" stroke="#6ad08a" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 5"/>
+    <path d="M100 232 q-10 -8 -10 -14 q0 -6 6 -6 q4 0 4 4 q0 -4 4 -4 q6 0 6 6 q0 6 -10 14z" fill="#ff7a9a"/>
+    <!-- 脖子 -->
+    <rect x="90" y="140" width="20" height="14" fill="${DARK}" stroke="${LINE}" stroke-width="2"/>
+    <!-- 天線 -->
+    <path d="M100 52 L100 30" stroke="${LINE}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="100" cy="24" r="8" fill="#ff5a5a" stroke="#b83232" stroke-width="2"/>
+    <!-- 頭 -->
+    <rect x="44" y="96" width="14" height="28" rx="5" fill="${DARK}" stroke="${LINE}" stroke-width="2"/>
+    <rect x="142" y="96" width="14" height="28" rx="5" fill="${DARK}" stroke="${LINE}" stroke-width="2"/>
+    <rect x="54" y="52" width="92" height="90" rx="22" fill="${METAL}" stroke="${LINE}" stroke-width="2.5"/>
+    <rect x="64" y="70" width="72" height="58" rx="14" fill="#1f2b3a"/>
+    ${face}
+    <circle cx="64" cy="62" r="3" fill="${DARK}"/><circle cx="136" cy="62" r="3" fill="${DARK}"/>
+  </svg>`;
+}
+
+// 玩家可以選的角色（js/game.js 用這份清單）。id 存在玩家資料裡，加入後不要改。
+window.CHARACTERS = [
+  { id: 'boy', name: '小小古生物學家', svg: boySVG },
+  { id: 'girl', name: '可愛小女生', svg: girlSVG },
+  { id: 'monkey', name: '猴子', svg: monkeySVG },
+  { id: 'rabbit', name: '兔子', svg: rabbitSVG },
+  { id: 'lion', name: '獅子', svg: lionSVG },
+  { id: 'sabertooth', name: '劍齒虎', svg: sabertoothSVG },
+  { id: 'parrot', name: '鸚鵡', svg: parrotSVG },
+  { id: 'robot', name: '機器人', svg: robotSVG },
+];
 
 /* ---------- 化石骨架 ---------- */
 

@@ -17,14 +17,16 @@
     </h1>
     <div id="menu" class="menu" role="menu" hidden>
       <button type="button" role="menuitem" data-menu="report">📊 我的成績單</button>
+      <button type="button" role="menuitem" data-menu="role">🎭 更換角色</button>
+      <button type="button" role="menuitem" data-menu="new" class="museum-only own-only">＋ 新展台</button>
+      <hr>
+      <button type="button" role="menuitem" data-menu="logout">🚪 登出</button>
     </div>
     <!-- 自己的博物館 -->
     <div class="topbar-actions museum-only own-only">
       <button id="btn-quiz" type="button" class="dig">⛏️ 採集新化石<span class="long">（數學）</span></button>
       <button id="btn-visit" type="button">🏛️ 參觀<span class="long">其他博物館</span></button>
-      <button id="btn-new" type="button">＋ 新展台</button>
       <button id="btn-help" type="button">玩法</button>
-      <button id="btn-logout" type="button">登出</button>
     </div>
     <!-- 參觀別人的博物館 -->
     <div class="topbar-actions museum-only visit-only">
@@ -63,6 +65,10 @@
         <div class="login-who">玩家代號：<b id="login-who"></b></div>
         <div id="grade-label" class="grade-label"></div>
         <div id="grade-list" class="grade-list"></div>
+        <div id="role-section" class="role-section" hidden>
+          <div class="grade-label">選擇你的角色</div>
+          <div id="role-list" class="role-list"></div>
+        </div>
         <button id="btn-enter" type="submit" class="primary"></button>
         <button id="btn-back" type="button" class="link-button">不是我，重新輸入</button>
       </form>
@@ -75,6 +81,9 @@
       <div id="hall" class="hall"></div>
     </div>
   </main>
+
+  <!-- 參觀別人的博物館時，自己的角色跟著走 -->
+  <div id="visitor" class="visitor museum-only visit-only" aria-hidden="true"></div>
 
   <!-- 編輯模式：重新組裝一個展台上的化石 -->
   <main class="layout edit-only">
@@ -156,6 +165,12 @@
     <form method="dialog"><button>關閉</button></form>
   </dialog>
 
+  <dialog id="role-dialog" class="help role-dialog">
+    <h2>🎭 更換角色</h2>
+    <div id="role-dialog-list" class="role-list"></div>
+    <form method="dialog"><button>完成</button></form>
+  </dialog>
+
   <dialog id="visit" class="help visit">
     <h2>🏛️ 參觀其他博物館</h2>
     <p>可以參觀，但不能改動別人的展品喔！</p>
@@ -170,12 +185,12 @@
       <li>按<b>⛏️ 採集新化石（數學）</b>，完成 10 題數學練習</li>
       <li>答對 8 題以上，就能挖到一塊新的恐龍骨頭！會先補齊你已經有的恐龍還缺的骨頭</li>
       <li>算不出來？按<b>📝 計算紙</b>用筆算算看。做完後可以回顧每一題，再打開計算紙檢查</li>
-      <li>點左上角的<b>☰</b>，可以看<b>我的成績單</b></li>
+      <li>點左上角的<b>☰</b>：看<b>我的成績單</b>、<b>更換角色</b>、<b>＋ 新展台</b>、<b>登出</b></li>
     </ul>
     <h3>逛博物館</h3>
     <ul>
       <li><b>拖曳大廳</b>、滑鼠滾輪或 ← / → 鍵：左右走動參觀</li>
-      <li>點展品下方的<b>✏️ 重新組裝</b>：進入編輯模式；<b>＋ 新展台</b>：多擺一隻恐龍</li>
+      <li>點展品下方的<b>✏️ 重新組裝</b>：進入編輯模式；大廳最後面的<b>＋ 新增展台</b>：多擺一隻恐龍</li>
       <li><b>🏛️ 參觀其他博物館</b>：去看看其他玩家的作品</li>
     </ul>
     <h3>編輯模式</h3>

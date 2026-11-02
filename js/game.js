@@ -10,7 +10,7 @@
 
   // 博物館大廳高 1000，寬度隨展台數量延伸；以下都是大廳座標
   const HALL_H = 1000;
-  const ENTRANCE_W = 640;     // 入口區寬度
+  const ENTRANCE_W = 780;     // 入口區寬度（門、採集按鈕、館長）
   const BAY_W = 760;          // 每個展台佔的寬度
   const END_PAD = 160;        // 最後面留白
   const PEDESTAL_BOTTOM = 836; // 展示台底部站在地板的這個高度
@@ -785,6 +785,17 @@
       entrance.appendChild(dig);
     }
     entrance.appendChild(elem('div', 'entrance-arrow', '往這邊參觀 →'));
+
+    // 館長（博物館主人的角色）站在門口迎接
+    const host = elem('div', 'host');
+    const figure = elem('div', 'host-figure');
+    figure.innerHTML = characterSVG(owner.role, 'happy');
+    host.append(
+      elem('div', 'host-bubble', readonly() ? '歡迎參觀！' : '歡迎回來！'),
+      figure,
+      elem('div', 'host-name', `館長 ${owner.name}`),
+    );
+    entrance.appendChild(host);
     return entrance;
   }
 
@@ -1030,6 +1041,14 @@
     setMode('museum');
     renderMuseum();
     museum.scrollLeft = 0;
+    // 參觀別人時，畫面左下角是自己的角色，跟著一起逛
+    const visitor = $('#visitor');
+    visitor.innerHTML = '';
+    if (readonly()) {
+      const figure = elem('div', 'visitor-figure');
+      figure.innerHTML = characterSVG(player.role, 'normal');
+      visitor.append(figure, elem('div', 'visitor-name', `我（${player.name}）`));
+    }
   }
 
   // ── 存檔 ──────────────────────────────────────────
@@ -1060,6 +1079,7 @@
       bones: Array.isArray(p.bones) ? p.bones.filter((b) => b && typeof b.part === 'string' && b.set >= 1) : [],
       exhibits: cleanExhibits(p.exhibits),
       quizzes: Array.isArray(p.quizzes) ? p.quizzes : [],
+      role: characterOf(p.role).id, // 還沒選過角色的舊玩家用第一個角色
     };
   }
 
@@ -1097,12 +1117,52 @@
     return gradeOf(id)?.name || '未選年級';
   }
 
+  // ── 角色 ──────────────────────────────────────────
+  // 角色的圖在 js/role.js 的 CHARACTERS
+  function characterOf(id) {
+    const list = window.CHARACTERS || [];
+    return list.find((c) => c.id === id) || list[0] || null;
+  }
+
+  function characterSVG(id, mood) {
+    return characterOf(id)?.svg(mood) || '';
+  }
+
+  // 一排角色按鈕，點一下選擇
+  function renderRoleChoices(container, selectedId, onPick) {
+    container.innerHTML = '';
+    for (const c of window.CHARACTERS || []) {
+      const btn = elem('button', 'role-option');
+      btn.type = 'button';
+      btn.dataset.role = c.id;
+      btn.classList.toggle('active', c.id === selectedId);
+      const figure = elem('div', 'role-figure');
+      figure.innerHTML = c.svg(c.id === selectedId ? 'happy' : 'normal');
+      btn.append(figure, elem('span', 'role-name', c.name));
+      btn.addEventListener('click', () => {
+        renderRoleChoices(container, c.id, onPick);
+        onPick(c.id);
+      });
+      container.appendChild(btn);
+    }
+  }
+
+  function openRoleDialog() {
+    renderRoleChoices($('#role-dialog-list'), player.role, async (id) => {
+      player.role = id;
+      if (!(await savePlayer())) return;
+      if (owner === player && !editing) renderMuseum();
+      if (owner && owner !== player) showMuseum(owner);
+    });
+    $('#role-dialog').showModal();
+  }
+
   // ── 登入 ──────────────────────────────────────────
   const nameForm = $('#login-name');
   const confirmForm = $('#login-confirm');
   const nameInput = $('#player-name');
   const loginError = $('#login-error');
-  let pending = null; // { name, existing }：輸入代號後、按下進入前
+  let pending = null; // { name, existing, role }：輸入代號後、按下進入前
 
   function showLoginStep(step) {
     nameForm.hidden = step !== 'name';
@@ -1147,8 +1207,9 @@
     return confirmForm.querySelector('input[name="grade"]:checked')?.value || null;
   }
 
+  // 新玩家要選年級和角色；舊玩家只確認年級（角色在選單裡換）
   function updateEnterButton() {
-    $('#btn-enter').disabled = !chosenGrade();
+    $('#btn-enter').disabled = !chosenGrade() || (pending && !pending.existing && !pending.role);
   }
 
   nameForm.addEventListener('submit', async (e) => {
@@ -1167,11 +1228,17 @@
       $('#login-greet').textContent = `歡迎回來，${existing.name}！`;
       $('#grade-label').textContent = '你的年級（升級了可以在這裡改）';
       $('#btn-enter').textContent = '進入我的博物館';
+      $('#role-section').hidden = true;
       renderGradeChoices(gradeOf(existing.grade) ? existing.grade : null);
     } else {
       $('#login-greet').textContent = '第一次來，歡迎你！';
       $('#grade-label').textContent = '請選擇你的年級';
       $('#btn-enter').textContent = '建立我的博物館';
+      $('#role-section').hidden = false;
+      renderRoleChoices($('#role-list'), null, (id) => {
+        pending.role = id;
+        updateEnterButton();
+      });
       renderGradeChoices(null);
     }
     showLoginStep('confirm');
@@ -1188,7 +1255,7 @@
   confirmForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const grade = chosenGrade();
-    if (!pending || !grade) return;
+    if (!pending || !grade || (!pending.existing && !pending.role)) return;
     const firstTime = !pending.existing;
     let p;
     if (pending.existing) {
@@ -1199,6 +1266,7 @@
         id: window.PlayerStore.idOf(pending.name),
         name: pending.name,
         grade,
+        role: pending.role,
         bones: legacy?.bones || [],
         exhibits: legacy?.exhibits || [],
         quizzes: [],
@@ -1251,7 +1319,11 @@
     const item = e.target.closest('[data-menu]');
     if (!item) return;
     closeMenu();
-    if (item.dataset.menu === 'report') openReport();
+    const action = item.dataset.menu;
+    if (action === 'report') openReport();
+    else if (action === 'role') openRoleDialog();
+    else if (action === 'new' && owner === player && !editing) newExhibit();
+    else if (action === 'logout') logout();
   });
 
   function praiseFor(questions) {
@@ -1274,8 +1346,8 @@
     const correct = quizzes.reduce((n, q) => n + (q.score || 0), 0);
     const passes = quizzes.filter((q) => q.score >= QUIZ_PASS).length;
 
-    // 開心的小小古生物學家（js/role.js）
-    $('#report-avatar').innerHTML = typeof window.boySVG === 'function' ? window.boySVG('happy') : '';
+    // 玩家角色開心的樣子（js/role.js）
+    $('#report-avatar').innerHTML = characterSVG(player.role, 'happy');
     $('#report-name').textContent = `${player.name}的成績單・${gradeName(player.grade)}`;
     $('#report-headline').textContent = `你已經完成 ${questions} 題數學！`;
     $('#report-praise').textContent = praiseFor(questions);
@@ -1429,14 +1501,12 @@
   });
 
   // ── 頂部按鈕 ──────────────────────────────────────
-  $('#btn-new').addEventListener('click', newExhibit);
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
   $('#btn-quiz').addEventListener('click', startQuiz);
   $('#btn-quiz-edit').addEventListener('click', startQuiz);
   $('#btn-visit').addEventListener('click', openVisitList);
   $('#btn-visit-other').addEventListener('click', openVisitList);
   $('#btn-home').addEventListener('click', () => showMuseum(player));
-  $('#btn-logout').addEventListener('click', logout);
   $('#btn-save').addEventListener('click', saveEditor);
   $('#btn-cancel').addEventListener('click', () => {
     if (dirty && !confirm('還沒儲存，確定要放棄這次的修改嗎？')) return;
